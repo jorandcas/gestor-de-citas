@@ -1,0 +1,47 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "",
+  "main": "index.js",
+  "author": "Johangly sucre",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "migration": "npx sequelize-cli db:migrate",
+    "seed": "npx sequelize-cli db:seed --seed initial-seed.js",
+    "seed:reset": "npx sequelize-cli db:seed --seed reset-seed.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@clerk/backend": "^2.15.0",
+    "@clerk/clerk-sdk-node": "^4.13.23",
+    "@clerk/express": "^1.7.33",
+    "@date-fns/tz": "^1.4.1",
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "@sendinblue/client": "^3.3.1",
+    "axios": "^1.13.3",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "googleapis": "^161.0.0",
+    "helmet": "^8.1.0",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.6.0",
+    "multer": "^2.0.2",
+    "mysql2": "^3.14.4",
+    "node-cron": "^4.2.1",
+    "sequelize": "^6.37.7",
+    "stripe": "^18.5.0",
+    "svix": "^1.76.1",
+    "umzug": "^3.8.2",
+    "winston": "^3.17.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.1",
+    "nodemon": "^3.1.10",
+    "sequelize-cli": "^6.6.3"
+  }
+}

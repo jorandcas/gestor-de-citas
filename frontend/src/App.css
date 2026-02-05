@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+.home-background{
+  width: 100%;
+  height: 100%; position: absolute;
+  max-height: 821.34px;
+  z-index: -10;
+  background-image: url("./assets/background.jpg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* --- La magia del parallax --- */
+  /* background-attachment: fixed; */
+  /* background-position: center center; Centra la imagen */
+}
+.no-background{
+    background-image: none !important;
+}
+
+.main{
+    font-family: "PT Serif", serif;
+}
+.textWithPoppins{
+    font-family: "Poppins", sans-serif;
+}
+.pt-serif-regular {
+    font-family: "PT Serif", serif;
+    font-weight: 400;
+    font-style: normal;
+}
+
+.pt-serif-bold {
+    font-family: "PT Serif", serif;
+    font-weight: 700;
+    font-style: normal;
+}
+
+.pt-serif-regular-italic {
+    font-family: "PT Serif", serif;
+    font-weight: 400;
+    font-style: italic;
+}
+
+.pt-serif-bold-italic {
+    font-family: "PT Serif", serif;
+    font-weight: 700;
+    font-style: italic;
+}
+
+/* layout css */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:where(.dark, .dark *));
+
+.userlayout .cl-internal-friqq3{
+    height: 40px;
+    width: 40px;
+}
+.userlayout .cl-internal-14s4tiz{
+    height: 40px;
+    width: 40px;
+}
+    
+@theme{
+  --color-primary: #bd9554;
+  --color-primary-50: rgba(189,149,52,0.5);
+
+
+  --animate-hidegap: hidegap .3s cubic-bezier(0.77,0,0.18,1) forwards;
+  @keyframes hidegap {
+    0% {
+      gap: 40px;
+    }
+    90% {
+      gap: 40px;
+    }
+    100% {
+      gap: 0;
+    }
+  }
+
+  --animate-slideOutLeft: slideOutLeft .5s cubic-bezier(0.77,0,0.18,1) forwards;
+  @keyframes slideOutLeft {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    90% {
+      transform: translateX(-100%);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-100%);
+      opacity: 0;
+      display: none;
+    }
+  }
+  --animate-slideInLeft: slideInLeft .8s cubic-bezier(0.68,-0.55,0.27,1.55) forwards;
+  @keyframes slideInLeft {
+    0% {
+      transform: translateX(-100%);
+      display: none;
+      opacity: 0;
+    }
+    90% {
+      transform: translateX(0%);
+      opacity: 1;
+      display: block;
+    }
+    100% {
+      transform: translateX(0%);
+      opacity: 1;
+      display: block;
+    }
+  }
+}
+

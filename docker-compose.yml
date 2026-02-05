@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # BASE DE DATOS MYSQL
+  # ============================================
+  mysql:
+    image: mysql:8.0
+    container_name: gestor-citas-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: gestor_citas
+      MYSQL_USER: gestor_citas_user
+      MYSQL_PASSWORD: gestor_citas_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - gestor_citas_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # ============================================
+  # BACKEND API
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gestor-citas-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: /api
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: gestor_citas
+      DB_USER: gestor_citas_user
+      DB_PASSWORD: gestor_citas_password
+      URL_BACKEND: http://localhost:3000
+      URL_FRONTEND: http://localhost:5173
+      FRONTEND_URL: http://localhost:5173
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - backend_logs:/app/logs
+    networks:
+      - gestor_citas_network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # FRONTEND (Para desarrollo - usa Vite dev server)
+  # ============================================
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: gestor-citas-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - gestor_citas_network
+    depends_on:
+      - backend
+
+  # ============================================
+  # FRONTEND PRODUCCIÓN (Nginx)
+  # ============================================
+  # Para producción, comenta el servicio anterior
+  # y usa este en su lugar:
+  #
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: gestor-citas-frontend
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   environment:
+  #     VITE_API_URL: https://api.tu-dominio.com
+  #   networks:
+  #     - gestor_citas_network
+  #   depends_on:
+  #     - backend
+
+networks:
+  gestor_citas_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  backend_logs:
+    driver: local

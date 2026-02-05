@@ -1,0 +1,9 @@
+module.exports={
+    theme:{
+        extend:{
+            colors:{
+                page:'#bd9554'
+            }
+        }
+    }
+}
