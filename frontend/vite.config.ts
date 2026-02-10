@@ -8,15 +8,15 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  base: '/',
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-    server:{
-      proxy:{
-          '/uploads': 'http://localhost:3000'
-
-      }
+  server: {
+    proxy: {
+      '/uploads': 'http://localhost:3000'
     }
+  }
 })
