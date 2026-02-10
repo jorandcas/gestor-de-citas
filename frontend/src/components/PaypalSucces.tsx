@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function PaypalSucces() {
-  const { loading, dataPayment, id } = usePaypal()
+  const { loading, dataPayment } = usePaypal()
   const navigate = useNavigate();
 
   // Redirigir automáticamente al dashboard después de 3 segundos
