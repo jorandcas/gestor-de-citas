@@ -60,8 +60,8 @@ db.Sequelize = Sequelize;
 // Exporta una función asíncrona para inicializar los modelos y asociaciones.
 // Esto debe ser llamado una vez al inicio de tu aplicación (ej. en tu main.js de Electron o servidor Node.js).
 db.initialize = async () => {
-  await db.sequelize.sync({ alter: true });
   await loadAndAssociateModels();
+  await db.sequelize.sync({ alter: true });
   runMigrations(db.sequelize);
 };
 
