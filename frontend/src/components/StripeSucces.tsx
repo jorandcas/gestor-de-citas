@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Success() {
-    const { paymentData, loading, appointmentId } = useStripe()
+    const { paymentData, loading } = useStripe()
     const navigate = useNavigate();
 
     // Redirigir automáticamente al dashboard después de 3 segundos

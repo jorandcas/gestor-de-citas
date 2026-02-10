@@ -17,7 +17,6 @@ export default function PaypalSucces() {
     }
   }, [loading, dataPayment, navigate]);
 
-  const appointmentId = id;
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
       {loading ?
