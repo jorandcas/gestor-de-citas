@@ -64,7 +64,7 @@ const PORT = process.env.PORT || 3000;
 
 db.sequelize.authenticate().then(() => {
   db.initialize();
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Server is running on port ${PORT}`);
 
     // ✅ AQUÍ ACTIVAMOS LOS CRON JOBS (Citas completadas + Correos abandono)
