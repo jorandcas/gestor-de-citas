@@ -176,7 +176,6 @@ export const Header = ({ isHomePage }: { isHomePage: boolean }) => {
 						<UserButton afterSignOutUrl="/" />
 					</SignedIn>
 				</div> */}
-				</div>
 
 				<AnimatePresence>
 					{isOpen && isMobile && (
