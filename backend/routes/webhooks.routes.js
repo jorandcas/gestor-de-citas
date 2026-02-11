@@ -55,14 +55,32 @@ router.post('/clerk', async (req, res) => {
 
       console.log(`✅ Nuevo usuario Clerk: ${clerkId} - ${emailAddress}`);
 
-      // Verificar si el usuario ya existe
-      const existingUser = await db.User.findOne({
+      // Verificar si el usuario ya existe por cleark_id
+      const existingUserByClerkId = await db.User.findOne({
         where: { cleark_id: clerkId }
       });
 
-      if (existingUser) {
-        console.log('⚠️ Usuario ya existe en BD, omitiendo creación');
+      if (existingUserByClerkId) {
+        console.log('⚠️ Usuario ya existe en BD por cleark_id, omitiendo creación');
         return res.status(200).json({ message: 'User already exists' });
+      }
+
+      // Verificar si ya existe un usuario con ese email (sincronización)
+      const existingUserByEmail = await db.User.findOne({
+        where: { email: emailAddress }
+      });
+
+      if (existingUserByEmail) {
+        // Actualizar el cleark_id del usuario existente
+        console.log('🔄 Usuario existe por email, actualizando cleark_id');
+        await existingUserByEmail.update({
+          cleark_id: clerkId,
+          name: fullName,
+          updatedAt: new Date(),
+        });
+        console.log('✅ Usuario sincronizado con Clerk:', existingUserByEmail.id);
+        logger.info(`Usuario sincronizado vía webhook Clerk: ${clerkId} - ${emailAddress}`);
+        return res.status(200).json({ message: 'User synchronized' });
       }
 
       // Crear usuario en la base de datos local
