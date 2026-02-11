@@ -22,6 +22,12 @@ sequelize = new Sequelize(currentEnvConfig.database, currentEnvConfig.username, 
   port: parseInt(currentEnvConfig.port, 10),
   dialect: 'mysql',
   timezone: '-06:00', // Timezone de America/Mexico_City (MySQL2 solo acepta offsets, no nombres de zonas)
+  dialectOptions: currentEnvConfig.dialectOptions || {},
+  pool: {
+    afterCreate: (connection) => {
+      connection.query('SET NAMES utf8mb4');
+    }
+  }
 });
 
 async function loadAndAssociateModels() {

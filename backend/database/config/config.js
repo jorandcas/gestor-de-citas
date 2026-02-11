@@ -1,5 +1,5 @@
-env.config();
 import env from 'dotenv';
+env.config();
 
 const config = {
   development: {
@@ -11,6 +11,7 @@ const config = {
     dialect: 'mysql',
     dialectOptions: {
       bigNumberStrings: true,
+      charset: 'utf8mb4',
     },
   },
   // test: {
@@ -33,6 +34,7 @@ const config = {
     dialect: 'mysql',
     dialectOptions: {
       bigNumberStrings: true,
+      charset: 'utf8mb4',
     },
   },
 };

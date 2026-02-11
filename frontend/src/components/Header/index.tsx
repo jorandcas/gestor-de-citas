@@ -125,7 +125,7 @@ export const Header = ({ isHomePage }: { isHomePage: boolean }) => {
 					</div>
 				)}
 				<div className="flex flex-row justify-start items-center w-full max-w-[1200px] mx-auto">
-					<div>
+					<a href="https://becerramanchinelly.com/" target="_blank" rel="noopener noreferrer">
 						{(scrolled || location.pathname !== '/') ? (
 							<img
 								src={LogoHeaderIcon}
@@ -139,7 +139,8 @@ export const Header = ({ isHomePage }: { isHomePage: boolean }) => {
 								className="w-[177.55px] h-[70.55px]"
 							/>
 						)}
-					</div>
+					</a>
+				</div>
 					<ul className="flex flex-row items-center max-h-[70px] max-w-[667px] ml-[190px]">
 						{navLinks.map((link, index) => (
 							<li className="pr-[50px]" key={index}>

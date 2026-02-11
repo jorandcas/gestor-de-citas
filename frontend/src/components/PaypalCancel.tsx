@@ -1,5 +1,8 @@
+import { useNavigate } from "react-router-dom";
 
 export default function PaypalCancel() {
+    const navigate = useNavigate();
+
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
             <div className="bg-white p-8 rounded-lg shadow-lg flex flex-col items-center">
@@ -9,12 +12,12 @@ export default function PaypalCancel() {
                 </svg>
                 <h1 className="text-3xl font-bold text-red-600 mb-2">Pago cancelado</h1>
                 <p className="text-gray-700 mb-6">El proceso de pago fue cancelado. Si fue un error, puedes intentarlo nuevamente.</p>
-                <a
-                    href="/"
+                <button
+                    onClick={() => navigate("/")}
                     className="mt-6 inline-block bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded transition"
                 >
-                    Volver al inicio
-                </a>
+                    Volver a comprar
+                </button>
             </div>
         </div>
     )
