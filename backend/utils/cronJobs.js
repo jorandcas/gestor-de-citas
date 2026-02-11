@@ -39,11 +39,11 @@ async function checkAppointmentsAndSendEmails() {
     try {
         const sixtyMinAgo = now.clone().subtract(60, "minutes").toDate();
 
-        // Buscamos pagos pendientes viejos
+        // Buscamos pagos pendientes viejos (usar transactionDate en lugar de createdAt)
         const abandonedPayments = await db.PaymentsAppointments.findAll({
             where: {
                 status: "pendiente",
-                createdAt: { [Op.lte]: sixtyMinAgo }
+                transactionDate: { [Op.lte]: sixtyMinAgo }
             },
             include: [{
                 model: db.Appointment,

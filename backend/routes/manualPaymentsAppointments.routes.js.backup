@@ -30,7 +30,7 @@ console.log("----------------------------------------------------");
 // Create a new payment appointment
 router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 	// Usamos console.log para asegurar visibilidad en tu terminal
-	console.log("|||||||||||||||||||||||||||||||||||||||");
+	console.log("|||||||||||||||||||||||||||||||||||||||||||");
 	console.log("🚀 INICIANDO PROCESO DE PAGO MANUAL");
 
 	const transaction = await db.sequelize.transaction();
@@ -71,7 +71,6 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 				message: "Appointment not found",
 			});
 		}
-
 		if (appointment[0].status === 'reservado') {
 			console.log("❌ Appointment is already booked");
 			await transaction.rollback();
@@ -204,7 +203,7 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 
 		// Formatear la fecha
 		let fechaFormateada = 'N/D';
-		const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+		const opciones = { weekday: 'long', day: 'numeric', month: 'long' };
 
 		if (appt?.day) {
 			const fechaTz = new TZDate(appt.day, ZONE);
@@ -269,7 +268,7 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			await transaction.commit();
 
 			console.log("🏁 Proceso completado correctamente");
-			console.log("|||||||||||||||||||||||||||||||||||||||");
+			console.log("|||||||||||||||||||||||||||||||||||||||||||");
 
 			res.status(201).json({
 				status: "success",
@@ -338,7 +337,6 @@ router.get("/", async (req, res) => {
 			where: { paymentMethodId: paymentMethod[0].id },
 			order: [['createdAt', 'DESC']],
 		});
-
 		res.status(200).json({
 			status: "success",
 			data: response,
@@ -347,7 +345,7 @@ router.get("/", async (req, res) => {
 		console.error("Error fetching payment appointments:", error);
 		res.status(500).json({
 			status: "error",
-			message: "Error fetching payment payments",
+			message: "Error fetching payment appointments",
 			error: error.message,
 		});
 	}
@@ -439,6 +437,12 @@ router.put("/:id", async (req, res) => {
 							const meet = await ensureMeetLinkForAppointment(paymentAppointment.appointment_id);
 							meetLink = meet.link;
 						}
+					} else {
+						// Si no hay plataforma seleccionada, intentar con Meet por defecto
+						console.log("⚠️ No hay plataforma seleccionada, generando link de Meet por defecto");
+						const meet = await ensureMeetLinkForAppointment(paymentAppointment.appointment_id);
+						meetLink = meet.link;
+						console.log("✅ Meet link generado:", meetLink);
 					}
 				} catch (e) {
 					console.error("❌ No se pudo generar link de reunión:", e?.code || e?.message);
@@ -456,9 +460,9 @@ router.put("/:id", async (req, res) => {
 					if (appointment.day) {
 						const fechaTz = new TZDate(appointment.day, ZONE);
 						const fechaNativa = new Date(fechaTz.internal);
-						fechaFormateada = fechaNativa.toLocaleDateString('es-MX', opciones);
+						fechaCita = fechaNativa.toLocaleDateString('es-MX', opciones);
 						// Capitalizar primera letra (ej: Lunes...)
-						fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1);
+						fechaCita = fechaCita.charAt(0).toUpperCase() + fechaCita.slice(1);
 					}
 
 					// 2. Formatear Fecha del PAGO (TransactionDate)
@@ -476,8 +480,8 @@ router.put("/:id", async (req, res) => {
 
 						// ✅ DATOS DE LA CITA
 						cliente_nombre: paymentAppointment.client_name,
-						cita_fecha: fechaFormateada,
-						cita_hora: `${appt?.start_time ? appt.start_time.slice(0, 5) : ''} - ${appt?.end_time ? appt.end_time.slice(0, 5) : ''}`,
+						cita_fecha: fechaCita,
+						cita_hora: `${appointment.start_time.slice(0, 5)} - ${appointment.end_time.slice(0, 5)}`,
 						tipo_asesoria: "Asesoría Legal Online",
 
 						// ✅ DATOS FINANCIEROS QUE FALTABAN
@@ -505,24 +509,35 @@ router.put("/:id", async (req, res) => {
 						console.log("📤 TO:", paymentAppointment.client_email);
 						console.log("📤 PARAMS:", JSON.stringify(datosEmail, null, 2));
 					}
-				}
 			} catch (emailError) {
-				console.error("❌ Error enviando email (No afecta el sobrescritura: ", emailError);
+				console.error("❌ Error enviando email (No afecta el guardado):", emailError);
 			}
 			// =================================================================
-		}
 
-		await transaction.commit();
+			// Crear notificación de cambio de estado
+			if (status && updatedPaymentAppointment.appointment_id) {
+				await db.Notification.create({
+					user_id: updatedPaymentAppointment.user_id,
+					title: `Tu pago ha cambiado a ${status}.`,
+					body: `Tu pago ha sido cambiado al estado: ${status}.`,
+					type: status === "completado" ? "success" : status === "fallido" ? "error" : "other",
+					payment_id: updatedPaymentAppointment.id,
+					seen: false
+				}, { transaction });
+			}
 
-		return res.status(200).json({
-			data: updatedPaymentAppointment,
-			status: "success",
-			message: "Payment updated and notification created.",
-		});
+			await transaction.commit();
+
+			return res.status(200).json({
+				data: updatedPaymentAppointment,
+				status: "success",
+				message: "Payment updated and notification created.",
+			});
+
 	} catch (error) {
 		await transaction.rollback();
-		console.error("Error updating payment appointment:", error);
-		return res.status(500).json({
+		console.error("❌ Error en transacción:", error);
+		res.status(500).json({
 			status: "error",
 			message: "Error updating payment appointment",
 			error: error.message,
