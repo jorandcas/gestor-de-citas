@@ -67,7 +67,8 @@ db.Sequelize = Sequelize;
 // Esto debe ser llamado una vez al inicio de tu aplicación (ej. en tu main.js de Electron o servidor Node.js).
 db.initialize = async () => {
   await loadAndAssociateModels();
-  await db.sequelize.sync({ alter: true, update: true }); // update: true evita duplicados
+  // sync() sin 'alter: true' evita conflictos con restricciones existentes
+  await db.sequelize.sync();
   runMigrations(db.sequelize);
 };
 
