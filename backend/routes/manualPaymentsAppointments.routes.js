@@ -30,7 +30,7 @@ console.log("----------------------------------------------------");
 // Create a new payment appointment
 router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 	// Usamos console.log para asegurar visibilidad en tu terminal
-	console.log("|||||||||||||||||||||||||||||||||||||||||||||||");
+	console.log("|||||||||||||||||||||||||||||||||||||||||||");
 	console.log("🚀 INICIANDO PROCESO DE PAGO MANUAL");
 
 	const transaction = await db.sequelize.transaction();
@@ -79,7 +79,6 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 				message: "Appointment is already booked",
 			});
 		}
-
 
 		if (user.length === 0) {
 			console.log("❌ User not found");
@@ -171,9 +170,10 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			{ transaction }
 		);
 
+		// Cambiar cita a "pendiente_pago" (NO a "reservado" aún)
 		await db.Appointment.update(
 			{
-				status: "reservado",
+				status: "pendiente_pago",
 				...(meetingPlatformId && { meetingPlatformId: parseInt(meetingPlatformId) })
 			},
 			{
@@ -268,7 +268,7 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			await transaction.commit();
 
 			console.log("🏁 Proceso completado correctamente");
-			console.log("|||||||||||||||||||||||||||||||||||||||||||||||");
+			console.log("|||||||||||||||||||||||||||||||||||||||||||");
 
 			res.status(201).json({
 				status: "success",
@@ -326,11 +326,13 @@ router.get("/:id", async (req, res) => {
 		});
 	}
 });
+
 router.get("/", async (req, res) => {
 	try {
 		const paymentMethod = await db.PaymentsMethods.findAll({
 			where: { name: "Pago Externo" },
 		});
+
 		const response = await db.PaymentsAppointments.findAll({
 			where: { paymentMethodId: paymentMethod[0].id },
 			order: [['createdAt', 'DESC']],
@@ -348,7 +350,6 @@ router.get("/", async (req, res) => {
 		});
 	}
 });
-
 
 // Update payment appointment (APROBACIÓN DEL PAGO)
 // Update payment appointment (APROBACIÓN DEL PAGO)
@@ -380,6 +381,21 @@ router.put("/:id", async (req, res) => {
 			is_approved: true,
 			isActive,
 		}, { transaction });
+
+		// Actualizar la cita según el estado del pago
+		if (status === "completado") {
+			// Aprobar: cambiar cita a "reservado"
+			await db.Appointment.update(
+				{ status: "reservado" },
+				{ where: { id: paymentAppointment.appointment_id }, transaction }
+			);
+		} else if (status === "fallido") {
+			// Rechazar: cambiar cita a "disponible"
+			await db.Appointment.update(
+				{ status: "disponible" },
+				{ where: { id: paymentAppointment.appointment_id }, transaction }
+			);
+		}
 
 		// =================================================================
 		// 📧 EMAIL #2: CONFIRMACIÓN DE PAGO (DATOS COMPLETOS)
@@ -468,8 +484,6 @@ router.put("/:id", async (req, res) => {
 						cita_hora: `${appointment.start_time.slice(0, 5)} - ${appointment.end_time.slice(0, 5)}`,
 						tipo_asesoria: "Asesoría Legal Online",
 
-
-
 						// ✅ DATOS FINANCIEROS QUE FALTABAN
 						metodo_pago: "Depósito / Transferencia",
 						monto: paymentAppointment.amount,
@@ -477,7 +491,6 @@ router.put("/:id", async (req, res) => {
 						referencia_pago: paymentAppointment.reference || "Sin referencia",
 						fecha_pago: fechaPago
 					};
-
 					// 🔍 VALIDACIÓN EN CONSOLA (Esto responde tu duda)
 					console.log("------------------------------------------------");
 					console.log("📤 DATOS ENVIADOS A BREVO:");
@@ -495,33 +508,31 @@ router.put("/:id", async (req, res) => {
 						console.log("📤 TEMPLATE:", TEMPLATE_PAGO_EXITOSO);
 						console.log("📤 TO:", paymentAppointment.client_email);
 						console.log("📤 PARAMS:", JSON.stringify(datosEmail, null, 2));
-
 					}
-				}
 			} catch (emailError) {
 				console.error("❌ Error enviando email (No afecta el guardado):", emailError);
 			}
-		}
-		// =================================================================
+			// =================================================================
 
-		if (status && updatedPaymentAppointment.appointment_id) {
-			await db.Notification.create({
-				user_id: updatedPaymentAppointment.user_id,
-				title: `Tu pago ha cambiado a ${status}.`,
-				body: `Tu pago ha sido cambiado al estado: ${status}.`,
-				type: status === "completado" ? "success" : status === "fallido" ? "error" : "other",
-				payment_id: updatedPaymentAppointment.id,
-				seen: false
-			}, { transaction });
-		}
+			// Crear notificación de cambio de estado
+			if (status && updatedPaymentAppointment.appointment_id) {
+				await db.Notification.create({
+					user_id: updatedPaymentAppointment.user_id,
+					title: `Tu pago ha cambiado a ${status}.`,
+					body: `Tu pago ha sido cambiado al estado: ${status}.`,
+					type: status === "completado" ? "success" : status === "fallido" ? "error" : "other",
+					payment_id: updatedPaymentAppointment.id,
+					seen: false
+				}, { transaction });
+			}
 
-		await transaction.commit();
+			await transaction.commit();
 
-		return res.status(200).json({
-			data: updatedPaymentAppointment,
-			status: "success",
-			message: "Payment updated and notification created.",
-		});
+			return res.status(200).json({
+				data: updatedPaymentAppointment,
+				status: "success",
+				message: "Payment updated and notification created.",
+			});
 
 	} catch (error) {
 		await transaction.rollback();
