@@ -43,6 +43,7 @@ export default (sequelize, DataTypes) => {
     PaymentImage.belongsTo(models.PaymentsAppointments, {
       foreignKey: 'payment_id',
       as: 'PaymentAppointment',
+      constraints: false, // Evitar conflictos con nombres de restricciones duplicados
     });
   };
 
