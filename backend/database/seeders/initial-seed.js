@@ -25,13 +25,13 @@ module.exports = {
       }], {});
     
     await queryInterface.bulkInsert('Configurations', [
-      {
-        key: 'currency',
-        value: 'USD',
-        description: 'Moneda por defecto de la plataforma',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
+      // {
+      //   key: 'currency',
+      //   value: 'USD',
+      //   description: 'Moneda por defecto de la plataforma',
+      //   createdAt: new Date(),
+      //   updatedAt: new Date()
+      // },
       {
         key: 'phone',
         value: '+1-234-567-890',

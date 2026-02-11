@@ -107,5 +107,5 @@ export const startCronJobs = () => {
     cron.schedule("0 */5 * * * *", checkAndMarkCompleted, { scheduled: true, timezone: TZ });
 
     // Ejecutar cada 30 minutos
-    cron.schedule("* /30 * * *", checkAppointmentsAndSendEmails, { scheduled: true, timezone: TZ });
+    cron.schedule("*/30 * * * *", checkAppointmentsAndSendEmails, { scheduled: true, timezone: TZ });
 };

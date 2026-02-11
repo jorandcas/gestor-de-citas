@@ -36,6 +36,21 @@ app.use(helmet({
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json()); // MOVIDO ANTES DE LAS RUTAS
 
+// Manejador global para promesas no manejadas
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION:', reason);
+  if (reason instanceof Error) {
+    console.error('Error:', reason.message);
+    console.error('Stack:', reason.stack);
+  }
+});
+
+// Manejador global para errores no capturados
+process.on('uncaughtException', (error) => {
+  console.error('❌ UNCAUGHT EXCEPTION:', error);
+  logger.error('Uncaught Exception:', error);
+});
+
 const API_PREFIX = process.env.API_PREFIX || '/api';
 
 // Rutas
