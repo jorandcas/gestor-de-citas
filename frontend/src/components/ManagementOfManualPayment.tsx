@@ -120,8 +120,8 @@ export default function ManagementOfManualPayment({
 											.VITE_BASE_URL_IMAGES
 									}${
 										infoOfManualPaymentById
-											?.imageOfPayment[0]
-											.file_path
+											?.PaymentImages?.[0]
+											?.file_path
 									}`}
 									alt="Comprobante de pago grande"
 									className={`rounded max-h-full transition-transform duration-300 cursor-zoom-in ${

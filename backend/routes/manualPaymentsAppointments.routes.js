@@ -298,10 +298,14 @@ router.get("/:id", async (req, res) => {
 	try {
 		const { id } = req.params;
 		const paymentAppointment =
-			await db.PaymentsAppointments.findByPk(id);
-		const imageOfPayment = await db.PaymentImages.findAll({
-			where: { payment_id: paymentAppointment.id },
-		});
+			await db.PaymentsAppointments.findByPk(id, {
+				include: [
+					{
+						model: db.PaymentImages,
+						as: 'PaymentImages',
+					},
+				],
+			});
 		if (!paymentAppointment) {
 			return res.status(404).json({
 				status: "error",
@@ -311,10 +315,7 @@ router.get("/:id", async (req, res) => {
 
 		res.status(200).json({
 			status: "success",
-			data: {
-				paymentAppointment,
-				imageOfPayment,
-			},
+			data: paymentAppointment,
 		});
 	} catch (error) {
 		console.error("Error fetching payment appointment:", error);
