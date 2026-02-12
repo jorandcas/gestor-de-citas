@@ -260,7 +260,7 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
         if(!newStatusOfManualPayment || !infoOfManualPaymentById) return
         handleSubmitChangeStatusOfManualPayment()
 
-    }, [newStatusOfManualPayment, handleSubmitChangeStatusOfManualPayment, infoOfManualPaymentById]);
+    }, [newStatusOfManualPayment, handleSubmitChangeStatusOfManualPayment, infoOfManualPaymentById, fetchManualPaymentById]);
     return {
         formData,
         paymentImage,
