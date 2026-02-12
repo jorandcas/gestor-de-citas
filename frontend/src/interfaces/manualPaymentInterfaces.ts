@@ -1,25 +1,25 @@
 export interface ExternalPayment {
-  id: number;
-  user_id: number;
-  appointment_id: number;
-  paymentMethodId: number;
-  payment_method_id: number;
-  amount: string;
-  client_email: string;
-  client_name: string;
-  client_phone: string;
-  created_at: string; // ISO date string
-  updated_at: string; // ISO date string
-  createdAt: string; // ISO date string
-  updatedAt: string; // ISO date string
-  currency: string;
-  is_approved: boolean | null;
-  notes: string;
-  reference: string;
-  status: string;
-  transactionDate: string; // ISO date string
+	id: number;
+	user_id: number;
+	appointment_id: number;
+	paymentMethodId: number;
+	payment_method_id: number;
+	amount: string;
+	client_email: string;
+	client_name: string;
+	client_phone: string;
+	created_at: string; // ISO date string
+	updated_at: string; // ISO date string
+	currency: string;
+	is_approved: boolean | null;
+	notes: string;
+	reference: string;
+	status: string;
+	transactionDate: string; // ISO date string
+	PaymentImages?: any[];
 }
-export interface  ManualImagePayment{
+
+export interface ManualImagePayment{
     createdAt
         :
         string
@@ -41,17 +41,14 @@ export interface  ManualImagePayment{
     updatedAt
         :
         string
-    uploaded_at
-        :
-        string
 }
-export interface  ManualPaymentByIdInterface{
+export interface ManualPaymentByIdInterface{
     paymentAppointment
         : ExternalPayment,
-    imageOfPayment
+    PaymentImages
         : ManualImagePayment[]
 }
 export interface ManualPaymentResponseInterface {
-  status: string;
-  data: ExternalPayment[];
+    status: string;
+    data: ExternalPayment[];
 }

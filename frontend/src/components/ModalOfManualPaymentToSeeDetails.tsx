@@ -119,7 +119,7 @@ export default function ModalOfManualPaymentToSeeDetails({
 
                     </div>
                     {/* <hr className='text-gray-200' /> */}
-                    {infoOfManualPaymentById.imageOfPayment?.[0]?.file_path && (
+                    {infoOfManualPaymentById.PaymentImages?.[0]?.file_path && (
                         <div className="w-full flex flex-col items-center">
 
                             <button

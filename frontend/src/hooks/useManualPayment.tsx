@@ -176,6 +176,7 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
                     user_id: rawData.user_id,
                     appointment_id: rawData.appointment_id,
                     paymentMethodId: rawData.paymentMethodId,
+                    payment_method_id: rawData.payment_method_id || rawData.paymentMethodId,
                     amount: rawData.amount,
                     status: rawData.status,
                     currency: rawData.currency,
@@ -188,8 +189,10 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
                     is_approved: rawData.is_approved,
                     createdAt: rawData.createdAt,
                     updatedAt: rawData.updatedAt,
+                    created_at: rawData.created_at || rawData.createdAt,
+                    updated_at: rawData.updated_at || rawData.updatedAt,
                 },
-                imageOfPayment: rawData.PaymentImages || []
+                PaymentImages: rawData.PaymentImages || []
             };
 
             console.log("✅ Datos transformados:", JSON.stringify(transformedData, null, 2));
