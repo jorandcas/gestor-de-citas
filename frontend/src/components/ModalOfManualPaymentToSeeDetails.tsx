@@ -78,21 +78,21 @@ export default function ModalOfManualPaymentToSeeDetails({
                                 <strong>Estado:</strong>
                             </p>
                             <span
-                                className={`px-4 flex items-center py-1 w-30 mx-auto h-8 flex justify-center items-center text-center text-sm font-medium rounded-full ${infoOfManualPaymentById.paymentAppointment.status === "pendiente"
+                                className={`px-4 flex items-center py-1 w-30 mx-auto h-8 flex justify-center items-center text-center text-sm font-medium rounded-full ${infoOfManualPaymentById?.paymentAppointment?.status === "pendiente"
                                     ? "bg-yellow-100 text-yellow-600"
-                                    : infoOfManualPaymentById.paymentAppointment.status === "completado"
+                                    : infoOfManualPaymentById?.paymentAppointment?.status === "completado"
                                         ? "bg-green-100 text-green-600"
                                         : "bg-red-100 text-red-600"
                                     }`}
                             >
-                                {infoOfManualPaymentById.paymentAppointment.status === "pendiente" ? (
+                                {infoOfManualPaymentById?.paymentAppointment?.status === "pendiente" ? (
                                     <Clock className="w-4 h-4 inline mr-1" />
-                                ) : infoOfManualPaymentById.paymentAppointment.status === "completado" ? (
+                                ) : infoOfManualPaymentById?.paymentAppointment?.status === "completado" ? (
                                     <CheckCircle className="w-4 h-4 inline mr-1" />
                                 ) : (
                                     <XCircle className="w-4 h-4 inline mr-1" />
                                 )}
-                                {infoOfManualPaymentById.paymentAppointment.status}
+                                {infoOfManualPaymentById?.paymentAppointment?.status}
                             </span>
                         </div>
                     </div>
@@ -101,7 +101,7 @@ export default function ModalOfManualPaymentToSeeDetails({
                             Cambiar Estado:
                         </p>
                         <div className='flex items-center justify-around gap-2'>
-                            {buttonsActionsOfVerifyPayment.filter(b => b.value !== infoOfManualPaymentById.paymentAppointment.status).map((button) => (
+                            {buttonsActionsOfVerifyPayment.filter(b => b.value !== infoOfManualPaymentById?.paymentAppointment?.status).map((button) => (
                                 <button
                                     key={button.value}
                                     className={`px-3 flex gap-2 items-center justify-center py-2 ${button.style} text-white rounded hover:opacity-90 transition-colors w-full cursor-pointer hover:shadow-xl transition-shadow shadow-sm`}
