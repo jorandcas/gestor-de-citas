@@ -29,6 +29,11 @@ console.log("----------------------------------------------------");
 
 // Create a new payment appointment
 router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
+	// LOG INICIAL: Verificar que la ruta se está llamando
+	console.log("==============================================");
+	console.log("🚀 POST /api/manual-payments RECIBIDO");
+	console.log("==============================================");
+
 	// Usamos console.log para asegurar visibilidad en tu terminal
 	console.log("|||||||||||||||||||||||||||||||||||||||");
 	console.log("🚀 INICIANDO PROCESO DE PAGO MANUAL");

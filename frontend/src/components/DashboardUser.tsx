@@ -45,7 +45,7 @@ export default function DashboardUser() {
     }
     const appointmentsOlded = appointmentsOfUser?.paymentsOfUser.filter(payment => payment.Appointment.status === 'completado')
     console.log(appointmentsOlded)
-    const newAppointments = appointmentsOfUser?.paymentsOfUser.filter(payment => payment.Appointment.status === 'reservado')
+    const newAppointments = appointmentsOfUser?.paymentsOfUser.filter(payment => payment.Appointment.status === 'reservado' || payment.Appointment.status === 'pendiente_pago')
     function appointmentIsCompleted(payment: PaymentOfUser) {
         const appointmentDate = new Date(payment.Appointment.day);
         const [hours, minutes, seconds] = payment.Appointment.end_time.split(':').map(Number);
