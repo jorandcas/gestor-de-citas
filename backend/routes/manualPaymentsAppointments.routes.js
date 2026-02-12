@@ -327,7 +327,7 @@ router.get("/:id", async (req, res) => {
 
 		res.status(200).json({
 			status: "success",
-			data: paymentAppointment,
+			data: [paymentAppointment],
 		});
 	} catch (error) {
 		console.error("Error fetching payment appointment:", error);
