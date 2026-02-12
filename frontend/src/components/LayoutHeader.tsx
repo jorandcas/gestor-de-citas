@@ -61,15 +61,16 @@ function LayoutHeader({session}: { session: any }) {
         <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
             <div className="mx-auto px-4 sm:px-6 lg:px-6">
                 <div className="flex items-center justify-between h-16">
-                    <motion.div
+                    <motion.button
                         initial={{opacity: 0, x: -20}}
                         animate={{opacity: 1, x: 0}}
-                        className="flex items-center space-x-3"
+                        className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer"
+                        onClick={() => navigate('/')}
                     >
                         <div className="bg-blue-600 p-2 rounded-lg">
                             <SquareChartGantt className="w-6 h-6 text-white"/>
                         </div>
-                        <div>
+                        <div className="text-left">
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                                 Gestión de Citas
                             </h1>
@@ -77,7 +78,7 @@ function LayoutHeader({session}: { session: any }) {
                                 Sistema de gestión de asesorías
                             </p>
                         </div>
-                    </motion.div>
+                    </motion.button>
 
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center justify-center">

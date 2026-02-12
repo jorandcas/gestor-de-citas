@@ -24,6 +24,9 @@ export default function ModalOfManualPaymentToSeeDetails({
     setShowImageModal,
     buttonsActionsOfVerifyPayment
 }: ModalOfManualPaymentToSeeDetailsProps) {
+    console.log("🔍 ModalOfManualPaymentToSeeDetails - infoOfManualPaymentById:", infoOfManualPaymentById);
+    console.log("🔍 Tiene propiedad paymentAppointment?", !!infoOfManualPaymentById?.paymentAppointment);
+    console.log("🔍 Claves de infoOfManualPaymentById:", Object.keys(infoOfManualPaymentById || {}));
     return (
         <Modal setShowModal={setShowModal} title="Detalles del Pago">
             {infoOfManualPaymentById ? (

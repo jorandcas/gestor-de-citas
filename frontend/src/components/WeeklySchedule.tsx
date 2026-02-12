@@ -172,8 +172,56 @@ const WeeklySchedule = () => {
             }
         };
 
+        // Cargar inicial
         fetchAppointments();
+
+        // Polling: Actualizar cada 30 segundos
+        const intervalId = setInterval(() => {
+            console.log("🔄 Refrescando citas automáticamente...");
+            fetchAppointments();
+        }, 30000); // 30 segundos
+
+        // Limpiar interval al desmontar el componente
+        return () => clearInterval(intervalId);
     }, [selectedDate]);
+
+    // Refrescar citas cuando el usuario regresa a la pestaña
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (!document.hidden && !loading) {
+                console.log("🔄 Usuario regreso a la pestaña, refrescando citas...");
+                const fetchAppointments = async () => {
+                    try {
+                        const startDate = dayNames[0]?.fullDate;
+                        const endDate = dayNames[dayNames.length - 1]?.fullDate;
+
+                        const response = await apiClient.get(
+                            "/appointments",
+                            {
+                                params: {
+                                    startDate: startDate?.toISOString(),
+                                    endDate: endDate?.toISOString(),
+                                },
+                            }
+                        );
+                        if (Number(response.status) >= 200 && Number(response.status) < 300) {
+                            setAppointments(response.data.appointments);
+                        }
+                    } catch (err) {
+                        console.error("Error al refrescar citas:", err);
+                    }
+                };
+
+                fetchAppointments();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [selectedDate, loading]);
 
     if (loading) {
         return (

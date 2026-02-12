@@ -45,13 +45,18 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
     const [loading, setLoading] = useState(false);
 
     const [infoOfManualPaymentById, setInfoOfManualPaymentById] = useState<ManualPaymentByIdInterface | null>(null);
+
+    // Debug: Monitorear cambios en infoOfManualPaymentById
+    useEffect(() => {
+        console.log("📊 infoOfManualPaymentById cambió:", infoOfManualPaymentById);
+    }, [infoOfManualPaymentById]);
     const [idManualPayment, setIdManualPayment] = useState<number | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [dataFiltered, setDataFiltered] = useState(allManualPayments)
     const [filter, setFilter] = useState("all")
     const [showImageModal, setShowImageModal] = useState(false);
     const [isZoomed, setIsZoomed] = useState(false);
-    const [newStatusOfManualPayment, setNewStatusOfManualPayment] = useState<string | null | undefined>(infoOfManualPaymentById?.paymentAppointment.status);
+    const [newStatusOfManualPayment, setNewStatusOfManualPayment] = useState<string | null | undefined>(null);
     const navigate = useNavigate();
 
     // Sincronizar appointment_id cuando selectedAppointment cambie
@@ -153,12 +158,44 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
         }
     };
     const fetchManualPaymentById = async (id: number) => {
+        console.log("🔍 fetchManualPaymentById llamado con ID:", id);
         try {
             const response = await axios.get(
                 `${import.meta.env.VITE_API_BASE_URL}/manual-payments/${id}`
             );
-            setInfoOfManualPaymentById(response.data.data);
+            console.log("📦 Respuesta completa del backend:", JSON.stringify(response.data, null, 2));
+            console.log("📦 response.data.data:", JSON.stringify(response.data.data, null, 2));
+
+            // Backend returns {status: "success", data: {...}}
+            const rawData = response.data.data;
+
+            // Transformar datos al formato esperado por el componente ModalOfManualPaymentToSeeDetails
+            const transformedData = {
+                paymentAppointment: {
+                    id: rawData.id,
+                    user_id: rawData.user_id,
+                    appointment_id: rawData.appointment_id,
+                    paymentMethodId: rawData.paymentMethodId,
+                    amount: rawData.amount,
+                    status: rawData.status,
+                    currency: rawData.currency,
+                    transactionDate: rawData.transactionDate,
+                    reference: rawData.reference,
+                    client_name: rawData.client_name,
+                    client_email: rawData.client_email,
+                    client_phone: rawData.client_phone,
+                    notes: rawData.notes,
+                    is_approved: rawData.is_approved,
+                    createdAt: rawData.createdAt,
+                    updatedAt: rawData.updatedAt,
+                },
+                imageOfPayment: rawData.PaymentImages || []
+            };
+
+            console.log("✅ Datos transformados:", JSON.stringify(transformedData, null, 2));
+            setInfoOfManualPaymentById(transformedData);
         } catch (error) {
+            console.error("❌ Error en fetchManualPaymentById:", error);
             if (isAxiosError(error))
                 toast.error(error.message);
             return null;
@@ -200,12 +237,12 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
             }
             submissionData.set('appointment_id', selectedAppointment ? String(selectedAppointment.id) : "");
 
-            // Obtener plataforma seleccionada del localStorage
-            const selectedAppointmentStr = localStorage.getItem('selectedAppointment');
-            const appointmentData = selectedAppointmentStr ? JSON.parse(selectedAppointmentStr) : null;
-            const platformId = appointmentData?.meetingPlatformId || null;
-            if (platformId) {
-                submissionData.append("meetingPlatformId", String(platformId));
+            // Usar meetingPlatformId del selectedAppointment (no del localStorage)
+            if (selectedAppointment?.meetingPlatformId) {
+                console.log("📋 Agregando meetingPlatformId al pago:", selectedAppointment.meetingPlatformId);
+                submissionData.append("meetingPlatformId", String(selectedAppointment.meetingPlatformId));
+            } else {
+                console.warn("⚠️ ADVERTENCIA: selectedAppointment no tiene meetingPlatformId");
             }
 
             submissionData.append("user_id", session?.user.id);
@@ -245,6 +282,7 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
         fetchAllManualPayments();
     }, []);
     useEffect(() => {
+        console.log("🔄 useEffect de idManualPayment ejecutado, idManualPayment:", idManualPayment);
         if (idManualPayment !== null) {
             fetchManualPaymentById(idManualPayment);
         }

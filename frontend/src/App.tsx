@@ -32,22 +32,25 @@ function App() {
     const { session } = useSession();
     const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
 
-    const [selectedAppointment, setSelectedAppointment] = useState<AppointmentInterface | null>(
-        localStorage.getItem('selectedAppointment')
-            ? JSON.parse(localStorage.getItem('selectedAppointment') as string)
-            : null
-    );
+    const [selectedAppointment, setSelectedAppointment] = useState<AppointmentInterface | null>(null);
     const location = useLocation();
     const isHomePage = location.pathname === "/";
-    useEffect(() => {
-        localStorage.setItem('selectedAppointment', JSON.stringify(selectedAppointment));
-    }, [selectedAppointment]);
+
+    // Cargar siempre desde localStorage cuando cambia la ruta
     useEffect(() => {
         const storedAppointment = localStorage.getItem('selectedAppointment');
         if (storedAppointment) {
-            setSelectedAppointment(JSON.parse(storedAppointment));
+            const parsed = JSON.parse(storedAppointment);
+            console.log("🔄 Cargando cita desde localStorage:", parsed);
+            setSelectedAppointment(parsed);
+        } else {
+            setSelectedAppointment(null);
         }
-    }, []);
+    }, [location.pathname]); // Se ejecuta cuando cambia la ruta
+
+    useEffect(() => {
+        localStorage.setItem('selectedAppointment', JSON.stringify(selectedAppointment));
+    }, [selectedAppointment]);
     return (
         <div>
             {session?.user && session?.publicUserData?.identifier === adminEmail ? (

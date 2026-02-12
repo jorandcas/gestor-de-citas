@@ -1,5 +1,5 @@
 import React, {useState, useMemo} from 'react';
-import {CalendarDays, HandCoins, Settings,ClipboardClock} from 'lucide-react';
+import {CalendarDays, HandCoins, Settings,ClipboardClock, Home} from 'lucide-react';
 import {useTheme} from '../contexts/ThemeContext.tsx';
 import {Toaster} from 'react-hot-toast';
 import type {MenuItem} from '../types';
@@ -24,18 +24,12 @@ export const Layout: React.FC<LayoutProps> = ({children}) => {
         if (userGroupId === 1) { // Administrativo
             return [
                 ...baseItems,
-                // {
-                //   id: 'overview',
-                //   label: 'Vista General',
-                //   icon: HandCoins,
-                //   path: '/', // Ruta base
-                // },
-                // {
-                //   id: 'reports',
-                //   label: 'Reportes',
-                //   icon: PieChart,
-                //   path: '/reports',
-                // },
+                {
+                    id: 'home',
+                    label: 'Inicio',
+                    icon: Home,
+                    path: '/',
+                },
                 {
                     id: 'horarios',
                     label: 'Horarios',
@@ -81,6 +75,12 @@ export const Layout: React.FC<LayoutProps> = ({children}) => {
         } else {
             return [
                 ...baseItems,
+                {
+                    id: 'home',
+                    label: 'Inicio',
+                    icon: Home,
+                    path: '/',
+                },
                 {
                     id: 'appointments',
                     label: 'Mis citas',

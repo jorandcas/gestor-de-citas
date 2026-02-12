@@ -23,7 +23,7 @@ import type { AppointmentInterface } from "@/types";
 const buttonsActionsOfVerifyPayment = [
 	{
 		label: "Rechazar",
-		value: "fallido",
+		value: "rechazado",
 		style: "bg-red-500",
 		icon: <XCircle className="w-4 h-4 inline mr-1" />,
 	},
