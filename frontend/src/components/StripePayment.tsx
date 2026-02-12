@@ -11,7 +11,7 @@ interface StripePaymentsProps {
     selectedPlatform?: number | null;
 }
 
-export default function StripePayment({selectedAppointment}: StripePaymentsProps) {
+export default function StripePayment({selectedAppointment, selectedPlatform}: StripePaymentsProps) {
 
     const statusMap: Record<string, { icon: JSX.Element; label: string; color: string }> = {
         disponible: { icon: <CheckCircle className="text-green-500 inline" />, label: "Disponible", color: "text-green-600" },
@@ -28,11 +28,28 @@ export default function StripePayment({selectedAppointment}: StripePaymentsProps
         e.preventDefault();
 
         try {
+            // Obtener meetingPlatformId: primero de la prop, luego del localStorage, luego de selectedAppointment
+            let meetingPlatformId = selectedPlatform;
+
+            if (!meetingPlatformId) {
+                const selectedPlatformStr = localStorage.getItem('selectedPlatform');
+                if (selectedPlatformStr) {
+                    meetingPlatformId = parseInt(selectedPlatformStr);
+                }
+            }
+
+            if (!meetingPlatformId && selectedAppointment?.meetingPlatformId) {
+                meetingPlatformId = selectedAppointment.meetingPlatformId;
+            }
+
+            console.log("📤 Enviando payment request con meetingPlatformId:", meetingPlatformId);
+
             const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/payment-stripe/create-checkout-session`, {
                 appointmentId: selectedAppointment?.id,
                 amount: selectedAppointment?.price,
                 success_url:'http://localhost:5173/',
-                cancel_url:'http://localhost:5173/'
+                cancel_url:'http://localhost:5173/',
+                ...(meetingPlatformId && { meetingPlatformId })
             })
             console.log(response)
 

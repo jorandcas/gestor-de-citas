@@ -33,6 +33,7 @@ function App() {
     const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
 
     const [selectedAppointment, setSelectedAppointment] = useState<AppointmentInterface | null>(null);
+    const [selectedPlatform, setSelectedPlatform] = useState<number | null>(null);
     const location = useLocation();
     const isHomePage = location.pathname === "/";
 
@@ -46,11 +47,27 @@ function App() {
         } else {
             setSelectedAppointment(null);
         }
+
+        // Cargar plataforma seleccionada
+        const storedPlatform = localStorage.getItem('selectedPlatform');
+        if (storedPlatform) {
+            const platformId = parseInt(storedPlatform);
+            console.log("🔄 Cargando plataforma desde localStorage:", platformId);
+            setSelectedPlatform(platformId);
+        } else {
+            setSelectedPlatform(null);
+        }
     }, [location.pathname]); // Se ejecuta cuando cambia la ruta
 
     useEffect(() => {
         localStorage.setItem('selectedAppointment', JSON.stringify(selectedAppointment));
     }, [selectedAppointment]);
+
+    useEffect(() => {
+        if (selectedPlatform !== null) {
+            localStorage.setItem('selectedPlatform', JSON.stringify(selectedPlatform));
+        }
+    }, [selectedPlatform]);
     return (
         <div>
             {session?.user && session?.publicUserData?.identifier === adminEmail ? (
@@ -152,7 +169,7 @@ function App() {
                                     /><Route
                                         path="/payment/stripe"
                                         element={
-                                            <StripePayment selectedAppointment={selectedAppointment} />
+                                            <StripePayment selectedAppointment={selectedAppointment} selectedPlatform={selectedPlatform} />
                                         }
                                     />
                                     <Route

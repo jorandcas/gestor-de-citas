@@ -12,6 +12,15 @@ export const useSelectPlatformBeforePayment = () => {
             // Guardamos la plataforma seleccionada en localStorage
             localStorage.setItem('selectedPlatform', JSON.stringify(idPlatform));
 
+            // Actualizar selectedAppointment con meetingPlatformId
+            const selectedAppointmentStr = localStorage.getItem('selectedAppointment');
+            if (selectedAppointmentStr) {
+                const selectedAppointment = JSON.parse(selectedAppointmentStr);
+                selectedAppointment.meetingPlatformId = idPlatform;
+                localStorage.setItem('selectedAppointment', JSON.stringify(selectedAppointment));
+                console.log("✅ Actualizada cita con meetingPlatformId:", idPlatform);
+            }
+
             toast.success('Plataforma seleccionada correctamente', { duration: 2000 });
 
             // Redirigimos a la página de pago

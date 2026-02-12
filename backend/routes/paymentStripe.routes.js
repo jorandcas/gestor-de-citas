@@ -15,8 +15,7 @@ const ZONE = process.env.ZONE_TIME || 'America/Mexico_City';
 router.post("/create-checkout-session", async (req, res) => {
 	try {
 		const url = URL_FRONTEND;
-		const { amount, success_url, cancel_url, appointmentId } =
-			req.body;
+		const { amount, success_url, cancel_url, appointmentId, meetingPlatformId } = req.body;
 			console.log(url)
 		const appointmentInfo = await db.Appointment.findByPk(appointmentId);
 		const currencyInfo = await db.Currency.findByPk(appointmentInfo?.currency_id);
@@ -28,6 +27,12 @@ router.post("/create-checkout-session", async (req, res) => {
 			});
 		}
 		 const amountInCents = Math.round(amount * 100);
+
+		// Construir URL de éxito con meetingPlatformId si existe
+		let successUrl = `${url}/success?appointmentId=${appointmentId}&session_id={CHECKOUT_SESSION_ID}`;
+		if (meetingPlatformId) {
+			successUrl += `&meetingPlatformId=${meetingPlatformId}`;
+		}
 
 		const session = await stripe.checkout.sessions.create({
 			payment_method_types: ["card"],
@@ -44,7 +49,7 @@ router.post("/create-checkout-session", async (req, res) => {
 				},
 			],
 			mode: "payment",
-			success_url: `${url}/success?appointmentId=${appointmentId}&session_id={CHECKOUT_SESSION_ID}`,
+			success_url: successUrl,
 			cancel_url: `${url}/canceled`,
 		});
 		console.log(session)

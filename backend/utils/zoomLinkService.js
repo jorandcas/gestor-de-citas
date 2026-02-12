@@ -133,14 +133,29 @@ async function createZoomMeeting(appointmentData) {
  */
 export async function ensureZoomLinkForAppointment(appointmentId) {
 	try {
+		console.log("🎥 ensureZoomLinkForAppointment llamado para appointmentId:", appointmentId);
+
 		const appointment = await db.Appointment.findByPk(appointmentId);
-		if (!appointment) throw new Error("Appointment not found");
+		if (!appointment) {
+			console.error("❌ Cita no encontrada:", appointmentId);
+			throw new Error("Appointment not found");
+		}
+
+		console.log("📋 Datos de la cita:", {
+			id: appointment.id,
+			day: appointment.day,
+			start_time: appointment.start_time,
+			end_time: appointment.end_time,
+			meeting_link: appointment.meeting_link
+		});
 
 		// Si ya tiene link, retornarlo
 		if (appointment.meeting_link && appointment.meeting_link.trim() !== "") {
+			console.log("✅ La cita YA tiene link de Zoom:", appointment.meeting_link);
 			return { appointment, link: appointment.meeting_link, created: false };
 		}
 
+		console.log("🔨 Creando nueva reunión de Zoom...");
 		// Crear la reunión de Zoom
 		const zoomMeeting = await createZoomMeeting({
 			day: appointment.day,
@@ -149,15 +164,18 @@ export async function ensureZoomLinkForAppointment(appointmentId) {
 			title: `Cita de Asesoría - $${appointment.price}`,
 		});
 
+		console.log("✅ Reunión de Zoom creada:", zoomMeeting.meetingUrl);
+
 		// Guardar el link en la cita
 		appointment.meeting_link = zoomMeeting.meetingUrl;
 		await appointment.save();
 
-		console.log("✅ ZOOM LINK SAVED:", zoomMeeting.meetingUrl);
+		console.log("✅ ZOOM LINK SAVED en base de datos:", zoomMeeting.meetingUrl);
 
 		return { appointment, link: zoomMeeting.meetingUrl, created: true };
 	} catch (error) {
 		console.error("❌ ERROR en ensureZoomLinkForAppointment:", error.message);
+		console.error("❌ Stack trace:", error.stack);
 		throw error;
 	}
 }
