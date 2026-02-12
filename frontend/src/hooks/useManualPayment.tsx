@@ -157,7 +157,7 @@ export default function useManualPayment({selectedAppointment}: ManualPaymentsPr
             const response = await axios.get(
                 `${import.meta.env.VITE_API_BASE_URL}/manual-payments/${id}`
             );
-            setInfoOfManualPaymentById(response.data.data);
+            setInfoOfManualPaymentById(response.data);
         } catch (error) {
             if (isAxiosError(error))
                 toast.error(error.message);

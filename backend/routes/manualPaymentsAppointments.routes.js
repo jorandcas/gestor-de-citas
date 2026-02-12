@@ -56,6 +56,14 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			meetingPlatformId,
 		} = formData;
 
+		// Si transactionDate viene como string (YYYY-MM-DD), interpretarlo como medianoche en la zona horaria correcta
+		let processedTransactionDate = transactionDate;
+		if (transactionDate && typeof transactionDate === 'string') {
+			// La fecha viene del input type="date" del frontend (YYYY-MM-DD)
+			// La interpretamos como medianoche (00:00:00) en la zona horaria configurada
+			processedTransactionDate = new TZDate(`${transactionDate} 00:00:00`, ZONE).internal;
+		}
+
 		console.log(`📝 Datos recibidos: Cliente=${client_name}, Email=${client_email}`);
 
 		const user = await db.User.findAll({
@@ -147,9 +155,7 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 					appointment_id: appointment_id
 						? parseInt(appointment_id)
 						: null,
-					transactionDate: transactionDate
-						? new TZDate(transactionDate, ZONE).internal
-						: new TZDate(new Date(), ZONE).internal,
+					transactionDate: processedTransactionDate || new TZDate(new Date(), ZONE).internal,
 					createdAt: new TZDate(new Date(), ZONE).internal,
 					updatedAt: new TZDate(new Date(), ZONE).internal,
 				},
