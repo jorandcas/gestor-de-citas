@@ -1,0 +1,191 @@
+import express from "express";
+import db from "../database/index.js";
+import { uploadArray } from "../utils/manageFiles.js";
+import { createNotification } from "../utils/notificationHelper.js";
+import { TZDate } from "@date-fns/tz";
+import logger from "../utils/logger.js";
+// ✅ IMPORTAR EL ENVIADOR DE CORREOS
+import { sendBrevoEmail } from "../utils/emailSender.js";
+import { ensureMeetLinkForAppointment } from "../utils/meetLinkService.js";
+import { ensureZoomLinkForAppointment } from "../utils/zoomLinkService.js";
+import { assertUserCanBook } from "../utils/bookingRules.js";
+
+const router = express.Router();
+
+router.use(express.json());
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ZONE = process.env.ZONE_TIME;
+
+// ✅ OBTENER EL ID DEL TEMPLATE DESDE EL .ENV
+const TEMPLATE_CONFIRMACION_MANUAL = parseInt(process.env.BREVO_TEMPLATE_CONFIRMACION_MANUAL);
+const TEMPLATE_PAGO_EXITOSO = parseInt(process.env.BREVO_TEMPLATE_PAGO_EXITOSO);
+
+// Update payment appointment (APROBACIÓN DEL PAGO)
+router.put("/:id", async (req, res) => {
+	console.log("|||||||||||| ACTUALIZANDO ESTADO DE PAGO ||||||||||||");
+	const transaction = await db.sequelize.transaction();
+	try {
+		const { id } = req.params;
+		const status = req.body.status;
+		const isActive =
+			status === "completado"
+				? true
+				: status === "fallido"
+					? false
+					: null;
+
+		const paymentAppointment = await db.PaymentsAppointments.findByPk(id);
+
+		if (!paymentAppointment) {
+			await transaction.rollback();
+			return res.status(404).json({
+				status: "error",
+				message: "Payment appointment not found",
+			});
+		}
+
+		const updatedPaymentAppointment = await paymentAppointment.update({
+			status,
+			is_approved: true,
+			isActive,
+		}, { transaction });
+
+	// Actualizar la cita según el estado del pago
+	if (status === "completado") {
+			// Aprobar: cambiar cita a "reservado"
+			await db.Appointment.update(
+				{ status: "reservado" },
+				{ where: { id: paymentAppointment.appointment_id }, transaction }
+			);
+	} else if (status === "fallido") {
+			// Rechazar: cambiar cita a "disponible"
+			await db.Appointment.update(
+				{ status: "disponible" },
+				{ where: { id: paymentAppointment.appointment_id }, transaction }
+			);
+	}
+
+	// =================================================================
+	// 📧 EMAIL #2: CONFIRMACIÓN DE PAGO (DATOS COMPLETOS)
+	// =================================================================
+	if (status === "completado") {
+
+			// ✅ 0) Traer la cita
+			const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id);
+
+			if (!appointment) {
+				console.warn("⚠️ No se encontró la cita para este pago:", paymentAppointment.appointment_id);
+			}
+
+			// ✅ 1) Asegurar link de reunión (Meet o Zoom)
+			let meetLink = appointment?.meeting_link || null;
+
+			// Obtener la plataforma seleccionada
+			if (appointment.meetingPlatformId) {
+				const platform = await db.MeetingPlatforms.findByPk(appointment.meetingPlatformId);
+				const platformName = platform?.name?.toLowerCase() || '';
+
+				console.log("📋 Plataforma seleccionada:", platformName);
+
+				// Generar link según la plataforma
+				if (platformName.includes('zoom')) {
+					console.log("🎥 Generando link de ZOOM...");
+					const zoomLink = await ensureZoomLinkForAppointment(paymentAppointment.appointment_id);
+					meetLink = zoomLink.link;
+					console.log("✅ Link de Zoom generado:", meetLink);
+				} else if (platformName.includes('meet') || platformName.includes('google')) {
+					console.log("🎥 Generando link de GOOGLE MEET...");
+					const meet = await ensureMeetLinkForAppointment(paymentAppointment.appointment_id);
+					meetLink = meet.link;
+					console.log("✅ Link de Meet generado:", meetLink);
+				}
+			}
+		}
+
+		try {
+			const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id);
+
+			if (appointment) {
+					// 1. Formatear Fecha de la CITA
+					let fechaCita = 'Por definir';
+					const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+
+					if (appointment.day) {
+						const fechaTz = new TZDate(appointment.day, ZONE);
+						const fechaNativa = new Date(fechaTz.internal);
+						fechaCita = fechaNativa.toLocaleDateString('es-MX', opciones);
+						// Capitalizar primera letra (ej: Lunes...)
+						fechaCita = fechaCita.charAt(0).toUpperCase() + fechaCita.slice(1);
+					}
+
+					// 2. Formatear Fecha del PAGO (TransactionDate)
+					let fechaPago = 'N/D';
+					if (paymentAppointment.transactionDate) {
+						const fechaPagoTz = new TZDate(paymentAppointment.transactionDate, ZONE);
+						const fechaPagoNativa = new Date(fechaPagoTz.internal);
+						fechaPago = fechaPagoNativa.toLocaleDateString('es-MX', opciones);
+					}
+
+					// 3. Preparar OBJETO DE DATOS (Lo que pide tu plantilla)
+					const datosEmail = {
+						// ✅ NUEVO: el link del Meet para el Template 4 (ya está arriba)
+						link_reunion: meetLink || "Por confirmar",
+
+						// ✅ DATOS DE LA CITA
+						cliente_nombre: paymentAppointment.client_name,
+						cita_fecha: fechaCita,
+						cita_hora: `${appointment?.start_time?.substring(0, 5) || ''} - ${appointment?.end_time?.substring(0, 5) || ''}`,
+						tipo_asesoria: "Asesoría Legal Online",
+
+						// ✅ DATOS FINANCIEROS QUE FALTABAN
+						metodo_pago: "Depósito / Transferencia",
+						monto: paymentAppointment.amount,
+						moneda: paymentAppointment.currency || "USD",
+						referencia_pago: paymentAppointment.reference || "Sin referencia",
+						fecha_pago: fechaPago
+					};
+
+					// 🔍 VALIDACIÓN EN CONSOLA (Esto responde tu duda)
+					console.log("------------------------------------------------");
+					console.log("📤 DATOS ENVIADOS A BREVO:");
+					console.log(datosEmail); // <--- Aquí verás exactamente qué se envía
+					console.log("------------------------------------------------");
+
+					// 4. Enviar
+					if (TEMPLATE_PAGO_EXITOSO && paymentAppointment.client_email) {
+						await sendBrevoEmail(
+							TEMPLATE_PAGO_EXITOSO,
+							paymentAppointment.client_email,
+							datosEmail
+						);
+						console.log("✅ Correo de pago exitoso enviado.");
+						console.log("📤 TEMPLATE:", TEMPLATE_PAGO_EXITOSO);
+						console.log("📤 TO:", paymentAppointment.client_email);
+						console.log("📤 PARAMS:", JSON.stringify(datosEmail, null, 2));
+					}
+			} catch (emailError) {
+				console.error("❌ Error enviando email (No afecta el guardado):", emailError);
+			}
+
+			// =================================================================
+
+			await transaction.commit();
+
+			return res.status(200).json({
+				data: updatedPaymentAppointment,
+				status: "success",
+				message: "Payment updated and notification created.",
+			});
+	} catch (error) {
+		await transaction.rollback();
+		console.error("Error updating payment appointment:", error);
+		return res.status(500).json({
+			status: "error",
+			message: "Error updating payment appointment",
+			error: error.message,
+		});
+	}
+});
+
+export default router;

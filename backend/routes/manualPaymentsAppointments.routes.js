@@ -4,45 +4,28 @@ import { uploadArray } from "../utils/manageFiles.js";
 import { createNotification } from "../utils/notificationHelper.js";
 import { TZDate } from "@date-fns/tz";
 import logger from "../utils/logger.js";
-// ✅ IMPORTAR EL ENVIADOR DE CORREOS
 import { sendBrevoEmail } from "../utils/emailSender.js";
 import { ensureMeetLinkForAppointment } from "../utils/meetLinkService.js";
 import { ensureZoomLinkForAppointment } from "../utils/zoomLinkService.js";
 import { assertUserCanBook } from "../utils/bookingRules.js";
 
 const router = express.Router();
-
 router.use(express.json());
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ZONE = process.env.ZONE_TIME;
 
-// ✅ OBTENER EL ID DEL TEMPLATE DESDE EL .ENV
 const TEMPLATE_CONFIRMACION_MANUAL = parseInt(process.env.BREVO_TEMPLATE_CONFIRMACION_MANUAL);
 const TEMPLATE_PAGO_EXITOSO = parseInt(process.env.BREVO_TEMPLATE_PAGO_EXITOSO);
 
-// 🔍 DEBUG AL INICIAR: Ver si la variable cargó
-console.log("----------------------------------------------------");
-console.log("🔍 DEBUG CARGA DE ROUTER PAGO MANUAL:");
-console.log(`🆔 TEMPLATE ID LEÍDO: ${TEMPLATE_CONFIRMACION_MANUAL} (Tipo: ${typeof TEMPLATE_CONFIRMACION_MANUAL})`);
-console.log("----------------------------------------------------");
-
-// Create a new payment appointment
+// ---------------------------------------------------------
+// POST: Crear nuevo pago manual
+// ---------------------------------------------------------
 router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
-	// LOG INICIAL: Verificar que la ruta se está llamando
-	console.log("==============================================");
-	console.log("🚀 POST /api/manual-payments RECIBIDO");
-	console.log("==============================================");
-
-	// Usamos console.log para asegurar visibilidad en tu terminal
-	console.log("|||||||||||||||||||||||||||||||||||||||");
 	console.log("🚀 INICIANDO PROCESO DE PAGO MANUAL");
-
 	const transaction = await db.sequelize.transaction();
-	try {
-		const formData = req.body;
-		const files = req.files;
 
+	try {
 		const {
 			amount,
 			reference,
@@ -54,126 +37,93 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			appointment_id,
 			transactionDate,
 			meetingPlatformId,
-		} = formData;
+		} = req.body;
 
-		// Si transactionDate viene como string (YYYY-MM-DD), interpretarlo como medianoche en la zona horaria correcta
-		let processedTransactionDate = transactionDate;
-		if (transactionDate && typeof transactionDate === 'string') {
-			// La fecha viene del input type="date" del frontend (YYYY-MM-DD)
-			// La interpretamos como medianoche (00:00:00) en la zona horaria configurada
-			processedTransactionDate = new TZDate(`${transactionDate} 00:00:00`, ZONE).internal;
-		}
+		const files = req.files;
 
-		console.log(`📝 Datos recibidos: Cliente=${client_name}, Email=${client_email}`);
+		// 1. Validaciones iniciales (Dentro de transacción para consistencia)
+		const user = await db.User.findOne({ where: { cleark_id: user_id }, transaction });
+		const appointment = await db.Appointment.findByPk(appointment_id, { transaction });
+		const paymentMethod = await db.PaymentsMethods.findOne({ where: { name: "Pago Externo" }, transaction });
 
-		const user = await db.User.findAll({
-			where: { cleark_id: user_id },
-		});
-		const appointment = await db.Appointment.findAll({
-			where: { id: appointment_id },
-		});
-		const PaymentsMethods = await db.PaymentsMethods.findAll({
-			where: { name: "Pago Externo" },
-		});
-
-		if (!appointment || appointment.length === 0) {
-			console.log("❌ Appointment not found");
+		if (!appointment) {
 			await transaction.rollback();
-			return res.status(404).json({
-				status: "error",
-				message: "Appointment not found",
-			});
+			return res.status(404).json({ status: "error", message: "Appointment not found" });
 		}
 
-		if (appointment[0].status === 'reservado') {
-			console.log("❌ Appointment is already booked");
+		if (appointment.status === "reservado" || appointment.status === "pendiente_pago") {
 			await transaction.rollback();
 			return res.status(400).json({
 				status: "error",
-				message: "Appointment is already booked",
+				code: "APPOINTMENT_ALREADY_BOOKED",
+				message: "Esta cita ya está siendo reservada por otro usuario. Por favor selecciona otra cita.",
 			});
 		}
 
-		if (user.length === 0) {
-			console.log("❌ User not found");
+		if (!user) {
 			await transaction.rollback();
-			return res.status(404).json({
-				status: "error",
-				message: "User not found",
-			});
+			return res.status(404).json({ status: "error", message: "User not found" });
 		}
 
-		// 2️⃣ Regla de negocio: solo 1 cita activa por usuario
+		// 2. Regla de negocio: 1 cita activa
 		try {
-			await assertUserCanBook(user[0].id);
+			await assertUserCanBook(user.id);
 		} catch (e) {
 			if (e?.code === "USER_HAS_ACTIVE_APPOINTMENT") {
 				await transaction.rollback();
 				return res.status(400).json({
 					status: "error",
 					code: e.code,
-					message:
-						"Ya tienes una cita activa. Podrás agendar otra cuando tu cita termine o sea cancelada.",
+					message: "Ya tienes una cita activa.",
 					activeAppointment: e.details,
 				});
 			}
-			throw e; // cualquier otro error real
+			throw e;
 		}
 
-		// 3️⃣ Validación: La referencia de pago debe ser única
+		// 3. Referencia única
 		if (reference) {
-			const existingPayment = await db.PaymentsAppointments.findOne({
-				where: { reference: reference },
-				transaction
-			});
-
+			const existingPayment = await db.PaymentsAppointments.findOne({ where: { reference }, transaction });
 			if (existingPayment) {
-				console.log("❌ La referencia de pago ya existe:", reference);
 				await transaction.rollback();
 				return res.status(400).json({
 					status: "error",
 					code: "DUPLICATE_REFERENCE",
-					message: "El número de referencia ya ha sido utilizado anteriormente. Por favor, verifica e ingresa un número de referencia diferente.",
+					message: "Referencia ya utilizada.",
 				});
 			}
 		}
 
-		const paymentAppointment =
-			await db.PaymentsAppointments.create(
-				{
-					paymentMethodId: PaymentsMethods[0].id,
-					status: "pendiente",
-					amount,
-					reference,
-					client_name,
-					client_email,
-					client_phone,
-					notes,
-					user_id: user[0].id,
-					is_approved: null,
-					currency: "USD",
-					appointment_id: appointment_id
-						? parseInt(appointment_id)
-						: null,
-					transactionDate: processedTransactionDate || new TZDate(new Date(), ZONE).internal,
-					createdAt: new TZDate(new Date(), ZONE).internal,
-					updatedAt: new TZDate(new Date(), ZONE).internal,
-				},
-				{ transaction }
-			);
+		// 4. Crear Registro de Pago
+		const paymentAppointment = await db.PaymentsAppointments.create(
+			{
+				paymentMethodId: paymentMethod.id,
+				status: "pendiente",
+				amount,
+				reference,
+				client_name,
+				client_email,
+				client_phone,
+				notes,
+				user_id: user.id,
+				is_approved: null,
+				currency: "USD",
+				appointment_id: appointment_id ? parseInt(appointment_id) : null,
+				transactionDate: transactionDate
+					? new TZDate(transactionDate, ZONE).internal
+					: new TZDate(new Date(), ZONE).internal,
+				createdAt: new TZDate(new Date(), ZONE).internal,
+				updatedAt: new TZDate(new Date(), ZONE).internal,
+			},
+			{ transaction }
+		);
 
-		// guarda la informacion de la imagen y su ruta
+		// 5. Guardar Imagen
 		await db.PaymentImages.create(
 			{
 				payment_id: paymentAppointment.id,
-				file_path:
-					files && files.length > 0
-						? `uploads/${files[0].filename}`
-						: null,
-				file_name:
-					files && files.length > 0
-						? files[0].originalname
-						: null,
+				file_path: files?.[0] ? `uploads/${files[0].filename}` : null,
+				file_name: files?.[0] ? files[0].originalname : null,
 				uploaded_by: 1,
 				is_active: true,
 				created_at: new TZDate(new Date(), ZONE).internal,
@@ -182,396 +132,339 @@ router.post("/", uploadArray("paymentImage", 1), async (req, res) => {
 			{ transaction }
 		);
 
-		// Cambiar cita a "pendiente_pago" (NO a "reservado" aún)
-		await db.Appointment.update(
+		// 6. Actualizar Cita a pendiente_pago
+		await appointment.update(
 			{
 				status: "pendiente_pago",
-				...(meetingPlatformId && { meetingPlatformId: parseInt(meetingPlatformId) })
+				...(meetingPlatformId && { meetingPlatformId: parseInt(meetingPlatformId) }),
 			},
-			{
-				where: { id: paymentAppointment.appointment_id },
-				transaction
-			}
+			{ transaction }
 		);
 
-		// Buscar al administrador
-		const adminUser = await db.User.findOne({
-			where: { email: ADMIN_EMAIL },
-			transaction
-		});
+		// 7. Notificación al Admin
+		const adminUser = await db.User.findOne({ where: { email: ADMIN_EMAIL }, transaction });
 
-		if (!adminUser) {
-			console.log("❌ Admin user not found");
-			await transaction.rollback();
-			return res.status(404).json({
-				status: "error",
-				message: "Admin user not found",
+		let fechaFormateada = "N/D";
+		if (appointment.day) {
+			const fechaTz = new TZDate(appointment.day, ZONE);
+			fechaFormateada = new Date(fechaTz.internal).toLocaleDateString("es-MX", {
+				weekday: "long",
+				day: "numeric",
+				month: "long",
 			});
-		}
-
-		// Crear notificación
-		const requestUser = user && user.length ? user[0] : null;
-		const appt = appointment && appointment.length ? appointment[0] : null;
-
-		// Formatear la fecha
-		let fechaFormateada = 'N/D';
-		const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-
-		if (appt?.day) {
-			const fechaTz = new TZDate(appt.day, ZONE);
-			const fechaNativa = new Date(fechaTz.internal);
-			fechaFormateada = fechaNativa.toLocaleDateString('es-MX', opciones);
 			fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1);
 		}
 
-		const creatingNotification = await db.Notification.create({
-			title: 'Nuevo pago pendiente por aprobar',
-			body: `Se ha recibido un pago por el monto de ${Number(paymentAppointment.amount).toFixed(2)}$${requestUser?.name ? ` por el usuario ${requestUser.name}` : ''}`,
-			type: 'success',
-			modalBody: `
-			<b>Se ha recibido un pago por el monto de ${Number(paymentAppointment.amount).toFixed(2)}$${requestUser?.name ? ` por el usuario <b>${requestUser.name}</b>` : ''} para la fecha <b>${fechaFormateada}</b> que inicia a las <b>${appt?.start_time ? appt.start_time.slice(0, 5) : 'N/D'}</b> y termina a las <b>${appt?.end_time ? appt.end_time.slice(0, 5) : 'N/D'}</b></b><br>
-			Nombre del cliente: <b>${client_name}</b><br>
-			Teléfono del cliente: <b>${client_phone}</b><br>
-			Correo electrónico: <b>${client_email}</b><br>
-			Fecha de transacción: <b>${transactionDate}</b><br>
-			Referencia: <b>${paymentAppointment.reference}</b><br>
-			Monto del pago: <b>${Number(paymentAppointment.amount).toFixed(2)}</b><br>
-			Notas: <b>${notes ?? 'No hay notas'}</b><br>
-			Método de pago: <b>Pago Externo</b>
-			`,
-			user_id: adminUser.id,
-			payment_id: paymentAppointment.id,
-		}, { transaction });
+		await db.Notification.create(
+			{
+				title: "Nuevo pago pendiente",
+				body: `Pago de ${amount}$ por ${client_name}`,
+				type: "success",
+				modalBody: `<b>Pago recibido para ${fechaFormateada}</b><br>Referencia: ${reference}`,
+				user_id: adminUser?.id,
+				payment_id: paymentAppointment.id,
+			},
+			{ transaction }
+		);
 
-		if (creatingNotification) {
-			console.log("✅ Notificación interna creada");
-
-			// =================================================================
-			// 📧 INTENTO DE ENVÍO CON DIAGNÓSTICO EN CONSOLA
-			// =================================================================
-			try {
-				// Chequeo explícito de variables
-				console.log(`📧 DATOS PARA EMAIL: TemplateID=${TEMPLATE_CONFIRMACION_MANUAL}, Email=${client_email}`);
-
-				if (TEMPLATE_CONFIRMACION_MANUAL && !isNaN(TEMPLATE_CONFIRMACION_MANUAL) && client_email) {
-					console.log(`⏳ Intentando enviar a Brevo...`);
-
-					await sendBrevoEmail(
-						TEMPLATE_CONFIRMACION_MANUAL,
-						client_email,
-						{
-							cliente_nombre: client_name,
-							cita_fecha: fechaFormateada,
-							cita_hora: `${appt?.start_time ? appt.start_time.slice(0, 5) : ''} - ${appt?.end_time ? appt.end_time.slice(0, 5) : ''}`,
-							tipo_asesoria: "Asesoría Legal Online"
-						}
-					);
-					console.log("✅✅✅ CORREO ENVIADO EXITOSAMENTE A BREVO");
-				} else {
-					console.error("⚠️ ALERTA: No se envió el correo porque falta el Template ID o el Email.");
-					console.error(`   - Template ID: ${TEMPLATE_CONFIRMACION_MANUAL}`);
-					console.error(`   - Email Cliente: ${client_email}`);
-				}
-			} catch (emailError) {
-				console.error("❌ ERROR CRÍTICO ENVIANDO CORREO:", emailError);
+		// 8. Email de confirmación de recepción (Opcional)
+		try {
+			if (TEMPLATE_CONFIRMACION_MANUAL && client_email) {
+				await sendBrevoEmail(TEMPLATE_CONFIRMACION_MANUAL, client_email, {
+					cliente_nombre: client_name,
+					cita_fecha: fechaFormateada,
+					cita_hora: `${appointment.start_time.slice(0, 5)} - ${appointment.end_time.slice(0, 5)}`,
+					tipo_asesoria: "Asesoría Legal Online",
+				});
 			}
-			// =================================================================
-
-			await transaction.commit();
-
-			console.log("🏁 Proceso completado correctamente");
-			console.log("|||||||||||||||||||||||||||||||||||||||");
-
-			res.status(201).json({
-				status: "success",
-				data: paymentAppointment,
-			});
-
-		} else {
-			logger.error("Error creating notification");
-			return res.status(500).json({
-				status: "error",
-				message: "Error creating notification",
-			});
+		} catch (e) {
+			console.error("Error email 1:", e);
 		}
+
+		await transaction.commit();
+		res.status(201).json({ status: "success", data: paymentAppointment });
 	} catch (error) {
 		await transaction.rollback();
-		console.error("Error creating payment appointment:", error);
-		res.status(500).json({
-			status: "error",
-			message: "Error creating payment appointment",
-			error: error.message,
-		});
+		console.error("Error en POST pago:", error);
+		res.status(500).json({ status: "error", message: error.message });
 	}
 });
 
-// Read payment appointment by ID
-router.get("/:id", async (req, res) => {
-	try {
-		const { id } = req.params;
-		const paymentAppointment =
-			await db.PaymentsAppointments.findByPk(id, {
-				include: [
-					{
-						model: db.PaymentImages,
-						as: 'PaymentImages',
-					},
-				],
-			});
-		if (!paymentAppointment) {
-			return res.status(404).json({
-				status: "error",
-				message: "Payment appointment not found",
-			});
-		}
-
-		res.status(200).json({
-			status: "success",
-			data: [paymentAppointment],
-		});
-	} catch (error) {
-		console.error("Error fetching payment appointment:", error);
-		res.status(500).json({
-			status: "error",
-			message: "Error fetching payment appointment",
-			error: error.message,
-		});
-	}
-});
-
-router.get("/", async (req, res) => {
-	try {
-		const paymentMethod = await db.PaymentsMethods.findAll({
-			where: { name: "Pago Externo" },
-		});
-
-		const response = await db.PaymentsAppointments.findAll({
-			where: { paymentMethodId: paymentMethod[0].id },
-			order: [['createdAt', 'DESC']],
-		});
-
-		res.status(200).json({
-			status: "success",
-			data: response,
-		});
-	} catch (error) {
-		console.error("Error fetching payment appointments:", error);
-		res.status(500).json({
-			status: "error",
-			message: "Error fetching payment payments",
-			error: error.message,
-		});
-	}
-});
-
-// Update payment appointment (APROBACIÓN DEL PAGO)
-// Update payment appointment (APROBACIÓN DEL PAGO)
+// ---------------------------------------------------------
+// PUT: Aprobar o Rechazar Pago
+// ---------------------------------------------------------
 router.put("/:id", async (req, res) => {
 	console.log("|||||||||||| ACTUALIZANDO ESTADO DE PAGO ||||||||||||");
 	const transaction = await db.sequelize.transaction();
+
 	try {
 		const { id } = req.params;
-		const status = req.body.status;
-		const isActive =
-			status === "completado"
-				? true
-				: status === "fallido"
-					? false
-					: null;
 
-		const paymentAppointment = await db.PaymentsAppointments.findByPk(id);
+		// ✅ Log para confirmar exactamente qué manda el frontend
+		const rawStatus = (req.body?.status ?? "").toString();
+		console.log("PUT /payments/:id status recibido:", rawStatus, "type:", typeof rawStatus);
 
-		if (!paymentAppointment) {
+		// ✅ Normalización (tolerante a variantes)
+		const normalizedRaw = rawStatus.trim().toLowerCase();
+
+		const statusMap = {
+			// completado
+			completado: "completado",
+			aprobado: "completado",
+			success: "completado",
+			succeeded: "completado",
+			paid: "completado",
+
+			// fallido / rechazado
+			fallido: "fallido",
+			rechazado: "fallido",
+			rechazo: "fallido",
+			declined: "fallido",
+			failed: "fallido",
+			rejected: "fallido",
+			cancelado: "fallido",
+			canceled: "fallido",
+			cancelled: "fallido",
+		};
+
+		const status = statusMap[normalizedRaw];
+
+		if (!status) {
 			await transaction.rollback();
-			return res.status(404).json({
+			return res.status(400).json({
 				status: "error",
-				message: "Payment appointment not found",
+				message: `Status inválido: "${rawStatus}". Usa: completado | fallido (o sus variantes).`,
 			});
 		}
 
-		const updatedPaymentAppointment = await paymentAppointment.update({
-			status,
-			is_approved: true,
-			isActive,
-		}, { transaction });
+		// ✅ is_approved correcto
+		const isApproved = status === "completado" ? true : status === "fallido" ? false : null;
 
-		// Actualizar la cita según el estado del pago
-		if (status === "completado") {
-			// Aprobar: cambiar cita a "reservado"
-			await db.Appointment.update(
-				{ status: "reservado" },
-				{ where: { id: paymentAppointment.appointment_id }, transaction }
-			);
-		} else if (status === "fallido") {
-			// Rechazar: cambiar cita a "disponible"
-			await db.Appointment.update(
-				{ status: "disponible" },
-				{ where: { id: paymentAppointment.appointment_id }, transaction }
-			);
+		const paymentAppointment = await db.PaymentsAppointments.findByPk(id, { transaction });
+		if (!paymentAppointment) {
+			await transaction.rollback();
+			return res.status(404).json({ status: "error", message: "Payment not found" });
 		}
 
-		// =================================================================
-		// 📧 EMAIL #2: CONFIRMACIÓN DE PAGO (DATOS COMPLETOS)
-		// =================================================================
+		// ✅ Actualizar pago (y updatedAt consistente)
+		await paymentAppointment.update(
+			{
+				status,
+				is_approved: isApproved,
+				updatedAt: new TZDate(new Date(), ZONE).internal,
+			},
+			{ transaction }
+		);
+
+		// Para el background (solo en completado)
+		let appointmentForBackground = null;
+
+		// ✅ COMPLETADO => reservar cita
 		if (status === "completado") {
+			const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id, { transaction });
 
-			// ✅ 0) Traer la cita
-			const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id);
+			if (appointment) {
+				const timestamp = new Date().toISOString();
+				console.log(`[${timestamp}] 📅 CITA ENCONTRADA:`, appointment.id);
+				console.log(`[${timestamp}]    - meetingPlatformId:`, appointment.meetingPlatformId);
+				console.log(`[${timestamp}]    - meeting_link actual:`, appointment.meeting_link);
 
+				console.log(`[${timestamp}] ⏳ Actualizando estado de cita a 'reservado'...`);
+				await appointment.update(
+					{ status: "reservado", updatedAt: new TZDate(new Date(), ZONE).internal },
+					{ transaction }
+				);
+				console.log(`[${timestamp}] ✅ Estado actualizado`);
+
+				appointmentForBackground = appointment; // para uso posterior fuera de la transacción
+			}
+		}
+
+		// ✅ FALLIDO => liberar cita
+		if (status === "fallido") {
+			const timestamp = new Date().toISOString();
+			console.log(`[${timestamp}] ❌ Pago fallido, liberando cita ${paymentAppointment.appointment_id}`);
+
+			const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id, { transaction });
 			if (!appointment) {
-				console.warn("⚠️ No se encontró la cita para este pago:", paymentAppointment.appointment_id);
+				await transaction.rollback();
+				return res.status(404).json({
+					status: "error",
+					message: "Appointment not found for this payment",
+				});
 			}
 
-			// ✅ 1) Asegurar link de reunión (Meet o Zoom)
-			let meetLink = appointment?.meeting_link || null;
+			// 🔥 Importante: limpiar campos que pueden afectar disponibilidad en tu UI
+			await appointment.update(
+				{
+					status: "disponible",
+					reservation: null,
+					reservation_date: null,
+					updatedAt: new TZDate(new Date(), ZONE).internal,
+				},
+				{ transaction }
+			);
 
-			if (!meetLink || meetLink.trim() === "") {
-				try {
-					// Obtener la plataforma seleccionada
-					if (appointment.meetingPlatformId) {
-						const platform = await db.MeetingPlatforms.findByPk(appointment.meetingPlatformId);
-						const platformName = platform?.name?.toLowerCase() || '';
-
-						console.log("📋 Plataforma seleccionada:", platformName);
-
-						// Generar link según la plataforma
-						if (platformName.includes('zoom')) {
-							console.log("🎥 Generando link de ZOOM...");
-							const { link } = await ensureZoomLinkForAppointment(paymentAppointment.appointment_id);
-							meetLink = link;
-							console.log("✅ Link de Zoom generado:", meetLink);
-						} else if (platformName.includes('meet') || platformName.includes('google')) {
-							console.log("🎥 Generando link de GOOGLE MEET...");
-							const meet = await ensureMeetLinkForAppointment(paymentAppointment.appointment_id);
-							meetLink = meet.link;
-							console.log("✅ Link de Meet generado:", meetLink);
-						} else {
-							console.log("⚠️ Plataforma no reconocida, intentando con Meet por defecto:", platformName);
-							const meet = await ensureMeetLinkForAppointment(paymentAppointment.appointment_id);
-							meetLink = meet.link;
-						}
-					}
-				} catch (e) {
-					console.error("❌ No se pudo generar link de reunión:", e?.code || e?.message);
-				}
-			}
-
-			try {
-				const appointment = await db.Appointment.findByPk(paymentAppointment.appointment_id);
-
-				if (appointment) {
-					// 1. Formatear Fecha de la CITA
-					let fechaCita = 'Por definir';
-					const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-
-					if (appointment.day) {
-						const fechaTz = new TZDate(appointment.day, ZONE);
-						const fechaNativa = new Date(fechaTz.internal);
-						fechaFormateada = fechaNativa.toLocaleDateString('es-MX', opciones);
-						// Capitalizar primera letra (ej: Lunes...)
-						fechaFormateada = fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1);
-					}
-
-					// 2. Formatear Fecha del PAGO (TransactionDate)
-					let fechaPago = 'N/D';
-					if (paymentAppointment.transactionDate) {
-						const fechaPagoTz = new TZDate(paymentAppointment.transactionDate, ZONE);
-						const fechaPagoNativa = new Date(fechaPagoTz.internal);
-						fechaPago = fechaPagoNativa.toLocaleDateString('es-MX', opciones);
-					}
-
-					// 3. Preparar OBJETO DE DATOS (Lo que pide tu plantilla)
-					const datosEmail = {
-						// ✅ NUEVO: el link del Meet para el Template 4 (ya está arriba)
-						link_reunion: meetLink || "Por confirmar",
-
-						// ✅ DATOS DE LA CITA
-						cliente_nombre: paymentAppointment.client_name,
-						cita_fecha: fechaFormateada,
-						cita_hora: `${appt?.start_time ? appt.start_time.slice(0, 5) : ''} - ${appt?.end_time ? appt.end_time.slice(0, 5) : ''}`,
-						tipo_asesoria: "Asesoría Legal Online",
-
-						// ✅ DATOS FINANCIEROS QUE FALTABAN
-						metodo_pago: "Depósito / Transferencia",
-						monto: paymentAppointment.amount,
-						moneda: paymentAppointment.currency || "USD",
-						referencia_pago: paymentAppointment.reference || "Sin referencia",
-						fecha_pago: fechaPago
-					};
-					// 🔍 VALIDACIÓN EN CONSOLA (Esto responde tu duda)
-					console.log("------------------------------------------------");
-					console.log("📤 DATOS ENVIADOS A BREVO:");
-					console.log(datosEmail); // <--- Aquí verás exactamente qué se envía
-					console.log("------------------------------------------------");
-
-					// 4. Enviar
-					if (TEMPLATE_PAGO_EXITOSO && paymentAppointment.client_email) {
-						await sendBrevoEmail(
-							TEMPLATE_PAGO_EXITOSO,
-							paymentAppointment.client_email,
-							datosEmail
-						);
-						console.log("✅ Correo de pago exitoso enviado.");
-						console.log("📤 TEMPLATE:", TEMPLATE_PAGO_EXITOSO);
-						console.log("📤 TO:", paymentAppointment.client_email);
-						console.log("📤 PARAMS:", JSON.stringify(datosEmail, null, 2));
-					}
-				}
-			} catch (emailError) {
-				console.error("❌ Error enviando email (No afecta el sobrescritura: ", emailError);
-			}
-			// =================================================================
+			console.log(`[${timestamp}] ✅ Cita ${appointment.id} liberada (disponible)`);
 		}
+
+		// ✅ Notificación al Usuario
+		await db.Notification.create(
+			{
+				user_id: paymentAppointment.user_id,
+				title: `Tu pago está ${status}`,
+				body: `Tu pago ha sido actualizado a: ${status}.`,
+				type: status === "completado" ? "success" : "error",
+				payment_id: paymentAppointment.id,
+				seen: false,
+			},
+			{ transaction }
+		);
 
 		await transaction.commit();
 
-		return res.status(200).json({
-			data: updatedPaymentAppointment,
-			status: "success",
-			message: "Payment updated and notification created.",
-		});
+		// ✅ Responder al frontend
+		res.status(200).json({ status: "success", data: paymentAppointment });
+
+		// ⏳ Background SOLO si completado y hay cita
+		if (status === "completado" && appointmentForBackground) {
+			setImmediate(async () => {
+				try {
+					const timestamp = new Date().toISOString();
+
+					// VOLVER A CONSULTAR LA CITA FUERA DE LA TRANSACCIÓN
+					const freshAppointment = await db.Appointment.findByPk(appointmentForBackground.id);
+					if (!freshAppointment) {
+						console.error(`[${timestamp}] ❌ [BACKGROUND] No se encontró la cita al intentar generar link`);
+						return;
+					}
+
+					let meetLink = freshAppointment.meeting_link;
+
+					// GENERAR LINK SI NO EXISTE
+					if (!meetLink || meetLink.trim() === "") {
+						console.log(`[${timestamp}] 🔗 [BACKGROUND] GENERANDO LINK DE REUNIÓN...`);
+						try {
+							if (!freshAppointment.meetingPlatformId) {
+								console.error("❌ ERROR: appointment.meetingPlatformId es NULL o undefined");
+								throw new Error("No se ha seleccionado una plataforma de reunión");
+							}
+
+							console.log(`[${timestamp}] ⏳ Buscando plataforma ID: ${freshAppointment.meetingPlatformId}...`);
+							const platform = await db.MeetingPlatforms.findByPk(freshAppointment.meetingPlatformId);
+							console.log(`[${timestamp}]    - Plataforma encontrada:`, platform?.name || "NULL");
+
+							if (!platform) throw new Error(`Plataforma no encontrada (ID: ${freshAppointment.meetingPlatformId})`);
+
+							const platformName = (platform?.name || "").toLowerCase();
+							console.log(`[${timestamp}]    - Nombre de plataforma:`, platformName);
+
+							if (platformName.includes("zoom")) {
+								console.log(`[${timestamp}]    🎦 [BACKGROUND] Generando link de Zoom...`);
+								const zoom = await ensureZoomLinkForAppointment(freshAppointment.id);
+								meetLink = zoom.link;
+							} else {
+								console.log(`[${timestamp}]    📹 [BACKGROUND] Generando link de Google Meet...`);
+								const meet = await ensureMeetLinkForAppointment(freshAppointment.id);
+								meetLink = meet.link;
+							}
+
+							console.log(`[${timestamp}] ⏳ [BACKGROUND] Guardando link en la BD...`);
+							await freshAppointment.update({
+								meeting_link: meetLink,
+								updatedAt: new TZDate(new Date(), ZONE).internal,
+							});
+							console.log(`[${timestamp}] ✅ [BACKGROUND] Link guardado:`, meetLink);
+						} catch (linkError) {
+							console.error(`[${new Date().toISOString()}] ❌ [BACKGROUND] ERROR GENERANDO LINK:`, linkError.message);
+							logger.error(`Error generando link de reunión en background: ${linkError.message}`);
+						}
+					} else {
+						console.log(`[${timestamp}] ✅ [BACKGROUND] La cita ya tenía un link:`, meetLink);
+					}
+
+					// EMAIL DE PAGO EXITOSO
+					try {
+						const opciones = { weekday: "long", day: "numeric", month: "long", year: "numeric" };
+						const fCita = new TZDate(freshAppointment.day, ZONE);
+
+						// 🔥 Ojo: paymentAppointment aquí viene del closure, pero está OK para template.
+						// Si quieres 100% fresco, re-consulta payment por id.
+						const fPago = new TZDate(paymentAppointment.transactionDate, ZONE);
+
+						const datosEmail = {
+							link_reunion: meetLink || "Por confirmar",
+							cliente_nombre: paymentAppointment.client_name,
+							cita_fecha: new Date(fCita.internal).toLocaleDateString("es-MX", opciones),
+							cita_hora: `${freshAppointment.start_time.slice(0, 5)} - ${freshAppointment.end_time.slice(0, 5)}`,
+							tipo_asesoria: "Asesoría Legal Online",
+							metodo_pago: "Depósito / Transferencia",
+							monto: paymentAppointment.amount,
+							moneda: paymentAppointment.currency || "USD",
+							referencia_pago: paymentAppointment.reference || "Sin referencia",
+							fecha_pago: new Date(fPago.internal).toLocaleDateString("es-MX", opciones),
+						};
+
+						if (TEMPLATE_PAGO_EXITOSO && paymentAppointment.client_email) {
+							console.log(`[${timestamp}] 📧 [BACKGROUND] Enviando email de confirmación...`);
+							await sendBrevoEmail(TEMPLATE_PAGO_EXITOSO, paymentAppointment.client_email, datosEmail);
+							console.log(`[${timestamp}] ✅ [BACKGROUND] Email enviado exitosamente`);
+						}
+					} catch (emailError) {
+						console.error("❌ [BACKGROUND] Error enviando email:", emailError);
+						logger.error(`Error enviando email de confirmación en background: ${emailError.message}`);
+					}
+				} catch (bgError) {
+					console.error("❌ [BACKGROUND] Error en proceso background:", bgError);
+					logger.error(`Error en proceso background de pago: ${bgError.message}`);
+				}
+			});
+		}
 	} catch (error) {
 		await transaction.rollback();
-		console.error("Error updating payment appointment:", error);
-		return res.status(500).json({
-			status: "error",
-			message: "Error updating payment appointment",
-			error: error.message,
-		});
+		res.status(500).json({ status: "error", message: error.message });
 	}
 });
 
-// Delete payment appointment
-router.delete("/:id", async (req, res) => {
-	const transaction = await db.sequelize.transaction();
+// ---------------------------------------------------------
+// GET: Obtener pago por ID
+// ---------------------------------------------------------
+router.get("/:id", async (req, res) => {
 	try {
-		const { id } = req.params;
-
-		const paymentAppointment =
-			await db.PaymentsAppointments.findByPk(id);
-
-		if (!paymentAppointment) {
-			return res.status(404).json({
-				status: "error",
-				message: "Payment appointment not found",
-			});
-		}
-
-		await paymentAppointment.destroy({ transaction });
-		await transaction.commit();
-
-		res.status(200).json({
-			status: "success",
-			message: "Payment appointment deleted successfully",
+		const data = await db.PaymentsAppointments.findByPk(req.params.id, {
+			include: [{ model: db.PaymentImages, as: "PaymentImages" }],
 		});
-	} catch (error) {
-		await transaction.rollback();
-		console.error("Error deleting payment appointment:", error);
-		res.status(500).json({
-			status: "error",
-			message: "Error deleting payment appointment",
-			error: error.message,
+		res.status(200).json({ status: "success", data });
+	} catch (e) {
+		res.status(500).json({ status: "error", message: e.message });
+	}
+});
+
+// ---------------------------------------------------------
+// GET: Listar pagos (Pago Externo)
+// ---------------------------------------------------------
+router.get("/", async (req, res) => {
+	try {
+		const method = await db.PaymentsMethods.findOne({ where: { name: "Pago Externo" } });
+		const data = await db.PaymentsAppointments.findAll({
+			where: { paymentMethodId: method.id },
+			order: [["createdAt", "DESC"]],
 		});
+		res.status(200).json({ status: "success", data });
+	} catch (e) {
+		res.status(500).json({ status: "error", message: e.message });
+	}
+});
+
+// ---------------------------------------------------------
+// DELETE: Eliminar pago
+// ---------------------------------------------------------
+router.delete("/:id", async (req, res) => {
+	try {
+		await db.PaymentsAppointments.destroy({ where: { id: req.params.id } });
+		res.status(200).json({ status: "success", message: "Deleted" });
+	} catch (e) {
+		res.status(500).json({ status: "error", message: e.message });
 	}
 });
 

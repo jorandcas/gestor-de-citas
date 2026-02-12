@@ -30,8 +30,15 @@ async function checkAndMarkCompleted() {
 
 /**
  * TAREA 2: Abandono de Carrito
+ * ⚠️ ELIMINADA: Ya no se liberan citas automáticamente.
+ * Solo el admin puede cambiar el estatus de las citas.
  */
 async function checkAppointmentsAndSendEmails() {
+    // ⚠️ FUNCIONALIDAD ELIMINADA - Las citas ya no se liberan automáticamente
+    // Solo el admin debe decidir cuándo cambiar el estatus de una cita
+
+    // Si en el futuro se desea reactivar, descomentar el código abajo:
+    /*
     console.log('--- 🔎 DEBUG CRON: Iniciando revisión ---');
     const now = moment().tz(TZ);
     const Op = db.Sequelize.Op;
@@ -99,13 +106,16 @@ async function checkAppointmentsAndSendEmails() {
     } catch (err) {
         console.error("❌ Error general en cron de abandono:", err);
     }
+    */
 }
 
 export const startCronJobs = () => {
     console.log(`⚙️ Cron Jobs activos - MODO DEBUG (Cada 5 minuto)`);
 
+    // TAREA 1: Completar citas automáticamente (se mantiene activo)
     cron.schedule("0 */5 * * * *", checkAndMarkCompleted, { scheduled: true, timezone: TZ });
 
-    // Ejecutar cada 30 minutos
-    cron.schedule("*/30 * * * *", checkAppointmentsAndSendEmails, { scheduled: true, timezone: TZ });
+    // TAREA 2: Abandono de carrito ELIMINADA
+    // Ya no se liberan citas automáticamente. Solo el admin puede cambiar el estatus.
+    // cron.schedule("*/30 * * * *", checkAppointmentsAndSendEmails, { scheduled: true, timezone: TZ });
 };
