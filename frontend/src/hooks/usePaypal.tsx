@@ -17,6 +17,21 @@ export default function usePaypal() {
   const hasCapturedRef = useRef(false);
   const hasSubmittedRef = useRef(false); // Evitar llamadas duplicadas al guardar pago
 
+  // Leer meetingPlatformId del localStorage
+  const getMeetingPlatformId = useCallback(() => {
+    try {
+      const selectedAppointmentStr = localStorage.getItem('selectedAppointment');
+      console.log("📦 localStorage selectedAppointment (PayPal):", selectedAppointmentStr);
+      const selectedAppointment = selectedAppointmentStr ? JSON.parse(selectedAppointmentStr) : null;
+      const meetingPlatformId = selectedAppointment?.meetingPlatformId || null;
+      console.log("🎯 meetingPlatformId from localStorage (PayPal):", meetingPlatformId);
+      return meetingPlatformId;
+    } catch (error) {
+      console.error("❌ Error leyendo meetingPlatformId del localStorage:", error);
+      return null;
+    }
+  }, []);
+
   const createOrderOfPayment = async (
     e: FormEvent,
     appoinmentId: number,
@@ -43,28 +58,37 @@ export default function usePaypal() {
   };
 
   const capturePayment = useCallback(async () => {
+    console.log("🔍 usePaypal: capturePayment llamado");
+    console.log("🔑 tokenParam:", tokenParam);
+    console.log("📅 appointmentId:", id);
+
     if (!tokenParam) {
       toast.error("No se proporcionó un token de PayPal");
       return;
     }
     // Evitar llamadas duplicadas
-    if (hasSubmittedRef.current) return;
+    if (hasSubmittedRef.current) {
+      console.log("⚠️ Ya enviado previamente, evitando duplicado");
+      return;
+    }
 
     setLoading(true);
     hasSubmittedRef.current = true; // Marcar como procesando
 
     try {
+      console.log("📡 Capturando orden de PayPal...");
       const response = await axios.post(`${urlBack}/payment-paypal/capture-order`, {
         orderId: tokenParam,
       });
+      console.log("✅ PayPal capture response:", response.data);
       setDataPayment(response.data);
       toast.success("Pago capturado con éxito");
       setLoading(false);
+
       try {
         // Obtener plataforma seleccionada del localStorage
-        const selectedAppointmentStr = localStorage.getItem('selectedAppointment');
-        const selectedAppointment = selectedAppointmentStr ? JSON.parse(selectedAppointmentStr) : null;
-        const meetingPlatformId = selectedAppointment?.meetingPlatformId || null;
+        const meetingPlatformId = getMeetingPlatformId();
+        console.log("🎯 meetingPlatformId para save-payment:", meetingPlatformId);
 
         const saveResponse = await axios.post(`${urlBack}/payment-paypal/save-payment`, {
           appointmentId: id,
@@ -78,11 +102,11 @@ export default function usePaypal() {
           ...(meetingPlatformId && { meetingPlatformId })
         });
 
-        // NOTA: Ya no necesitamos limpiar selectedPlatform porque ahora leemos de selectedAppointment
-
+        console.log("✅ save-payment response:", saveResponse.data);
         toast.success(saveResponse.data.message);
       } catch (error) {
         if (axios.isAxiosError(error)) {
+          console.error("❌ Error en save-payment:", error.response?.data || error.message);
           toast.error(error.message);
           // Resetear el flag si hay error
           hasSubmittedRef.current = false;
@@ -91,7 +115,7 @@ export default function usePaypal() {
 
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        console.error("Error en la solicitud Axios:", error.response?.data || error.message);
+        console.error("❌ Error en la solicitud Axios:", error.response?.data || error.message);
         toast.error(error.message);
         setLoading(false);
         // Resetear el flag si hay error
@@ -102,7 +126,7 @@ export default function usePaypal() {
     } finally {
       setLoading(false);
     }
-  }, [tokenParam, id, urlBack, session]);
+  }, [tokenParam, id, urlBack, session, getMeetingPlatformId]);
 
   useEffect(() => {
     if (!tokenParam || loading) return;
